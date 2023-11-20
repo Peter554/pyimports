@@ -1,12 +1,13 @@
-use std::{env, error::Error, path::Path};
+use std::{env, path::Path};
+use anyhow::Result;
 
 use pyimports::package_discovery::{self, Package};
 
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<()> {
     let args: Vec<_> = env::args().collect();
     let root_package_path = Path::new(&args[1]);
 
-    let package = package_discovery::discover_package(root_package_path);
+    let package = package_discovery::discover_package(root_package_path)?;
 
     // dbg!(&package);
     dbg!(count_modules(&package));
