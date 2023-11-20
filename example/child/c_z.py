@@ -16,7 +16,7 @@ from . import c_d
 from ..e import E
 from .c_e import E
 
-import example
+from .. import example
 from example import child2
 from example.child3 import CHILD
 from .. import child4

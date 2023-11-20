@@ -1,9 +1,11 @@
 use anyhow::Result;
 use rayon::prelude::*;
-use std::{fs, path::Path, io};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::{fs, io, path::Path};
 use thiserror::Error;
 
-#[derive(Error,Debug)]
+#[derive(Error, Debug)]
 pub enum PackageDiscoveryError {
     #[error("cannot read directory")]
     CannotReadDir(#[source] io::Error),
@@ -18,55 +20,60 @@ pub enum PackageDiscoveryError {
     NotAPythonPackage,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Package {
     pub pypath: String,
-    pub children: Vec<Package>,
-    pub modules: Vec<Module>,
+    pub path: PathBuf,
+    pub children: Vec<Arc<Package>>,
+    pub modules: Vec<Arc<Module>>,
 }
 
 impl Package {
-    fn new(pypath: String) -> Self {
+    pub fn new(pypath: String, path: PathBuf) -> Self {
         Package {
             pypath,
+            path,
             children: vec![],
             modules: vec![],
         }
     }
 
-    fn add_child(&mut self, child: Package) {
+    pub fn add_child(&mut self, child: Arc<Package>) {
         self.children.push(child);
     }
 
-    fn add_module(&mut self, module: Module) {
+    pub fn add_module(&mut self, module: Arc<Module>) {
         self.modules.push(module);
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Module {
     pub pypath: String,
+    pub path: PathBuf,
 }
 
 impl Module {
-    fn new(pypath: String) -> Self {
-        Module { pypath }
+    pub fn new(pypath: String, path: PathBuf) -> Self {
+        Module { pypath, path }
     }
 }
 
-pub fn discover_package(package_path: &Path) -> Result<Package> {
+pub fn discover_package(package_path: &Path) -> Result<Arc<Package>> {
     _discover_package(package_path, package_path)
 }
 
-fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Package> {
+fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Arc<Package>> {
     let (is_package, files, dirs) = fs::read_dir(package_path)
         .map_err(PackageDiscoveryError::CannotReadDir)?
         .par_bridge()
         .try_fold(
             || (false, vec![], vec![]),
-            |(mut is_package, mut files, mut dirs), entry| -> Result<_>{
+            |(mut is_package, mut files, mut dirs), entry| -> Result<_> {
                 let entry = entry.map_err(PackageDiscoveryError::CannotReadDirEntry)?;
-                let file_type = entry.file_type().map_err(PackageDiscoveryError::CannotDetermineFileType)?;
+                let file_type = entry
+                    .file_type()
+                    .map_err(PackageDiscoveryError::CannotDetermineFileType)?;
                 if file_type.is_file() {
                     let file_name = entry.file_name();
                     files.push(entry);
@@ -94,18 +101,18 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Pa
     }
 
     let pypath = get_pypath(root_package_path, package_path, false)?;
-    let mut package = Package::new(pypath);
+    let mut package = Package::new(pypath, package_path.to_owned());
 
     for module in files
         .par_iter()
         .filter(|file| file.path().extension().unwrap_or_default() == "py")
         .map(|file| {
             let pypath = get_pypath(root_package_path, &file.path(), true)?;
-            Ok(Module::new(pypath))
+            Ok(Module::new(pypath, file.path().to_owned()))
         })
         .collect::<Result<Vec<_>>>()?
     {
-        package.add_module(module);
+        package.add_module(Arc::new(module));
     }
 
     for child in dirs
@@ -116,18 +123,16 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Pa
     {
         match child {
             Ok(child) => {
-                package.add_child(child);
+                package.add_child(Arc::clone(&child));
             }
-            Err(e) => {
-                match e.root_cause().downcast_ref::<PackageDiscoveryError>() {
-                    Some(PackageDiscoveryError::NotAPythonPackage) => continue,
-                    _ => return Err(e)
-                }
+            Err(e) => match e.root_cause().downcast_ref::<PackageDiscoveryError>() {
+                Some(PackageDiscoveryError::NotAPythonPackage) => continue,
+                _ => return Err(e),
             },
         }
     }
 
-    Ok(package)
+    Ok(Arc::new(package))
 }
 
 fn get_pypath(root_package_path: &Path, path: &Path, is_file: bool) -> Result<String> {
@@ -169,16 +174,29 @@ mod tests {
             .collect::<HashSet<_>>();
         assert_eq!(
             root_modules,
-            ["example.__init__", "example.a", "example.b",]
-                .into_iter()
-                .collect::<HashSet<_>>()
+            [
+                "example.__init__",
+                "example.a",
+                "example.b",
+                "example.c",
+                "example.d",
+                "example.e",
+                "example.z",
+            ]
+            .into_iter()
+            .collect::<HashSet<_>>()
         );
-        assert_eq!(root_package.children.len(), 1);
+        assert_eq!(root_package.children.len(), 5);
 
-        let child_package = root_package.children.first().unwrap();
+        let binding = root_package
+            .children
+            .iter()
+            .filter(|child| child.pypath == "example.child")
+            .collect::<Vec<_>>();
+        let child_package_1 = binding.first().unwrap();
 
-        assert_eq!(child_package.pypath, "example.child");
-        let root_modules = child_package
+        assert_eq!(child_package_1.pypath, "example.child");
+        let root_modules = child_package_1
             .modules
             .iter()
             .map(|m| m.pypath.as_str())
@@ -187,12 +205,37 @@ mod tests {
             root_modules,
             [
                 "example.child.__init__",
-                "example.child.c",
-                "example.child.d",
+                "example.child.c_a",
+                "example.child.c_b",
+                "example.child.c_c",
+                "example.child.c_d",
+                "example.child.c_e",
+                "example.child.c_z",
             ]
             .into_iter()
             .collect::<HashSet<_>>()
         );
-        assert_eq!(child_package.children.len(), 0);
+        assert_eq!(child_package_1.children.len(), 0);
+
+        let binding = root_package
+            .children
+            .iter()
+            .filter(|child| child.pypath == "example.child2")
+            .collect::<Vec<_>>();
+        let child_package_2 = binding.first().unwrap();
+
+        assert_eq!(child_package_2.pypath, "example.child2");
+        let root_modules = child_package_2
+            .modules
+            .iter()
+            .map(|m| m.pypath.as_str())
+            .collect::<HashSet<_>>();
+        assert_eq!(
+            root_modules,
+            ["example.child2.__init__",]
+                .into_iter()
+                .collect::<HashSet<_>>()
+        );
+        assert_eq!(child_package_2.children.len(), 0);
     }
 }

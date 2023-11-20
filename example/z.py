@@ -4,13 +4,11 @@ from os import path
 import example.a
 import example.child.c_a
 
-def foo():
-    from example import b
-    from example.child import c_b
+from example import b
+from example.child import c_b
 
-class Bar:
-    from example.c import C
-    from example.child.c_c import C
+from example.c import C
+from example.child.c_c import C
 
 from . import d
 from .child import c_d
