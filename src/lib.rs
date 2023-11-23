@@ -1,4 +1,3 @@
-pub mod ast_visit;
-pub mod import_discovery;
-pub mod indexing;
-pub mod package_discovery;
+mod import_graph;
+
+pub use import_graph::{Error, ImportGraph};
