@@ -1,7 +1,6 @@
 use anyhow::Result;
 use rayon::prelude::*;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::{fs, io, path::Path};
 use thiserror::Error;
 
@@ -24,8 +23,8 @@ pub enum PackageDiscoveryError {
 pub struct Package {
     pub pypath: String,
     pub path: PathBuf,
-    pub children: Vec<Arc<Package>>,
-    pub modules: Vec<Arc<Module>>,
+    pub children: Vec<Package>,
+    pub modules: Vec<Module>,
 }
 
 impl Package {
@@ -38,11 +37,11 @@ impl Package {
         }
     }
 
-    pub fn add_child(&mut self, child: Arc<Package>) {
+    pub fn add_child(&mut self, child: Package) {
         self.children.push(child);
     }
 
-    pub fn add_module(&mut self, module: Arc<Module>) {
+    pub fn add_module(&mut self, module: Module) {
         self.modules.push(module);
     }
 }
@@ -59,11 +58,11 @@ impl Module {
     }
 }
 
-pub fn discover_package(package_path: &Path) -> Result<Arc<Package>> {
+pub fn discover_package(package_path: &Path) -> Result<Package> {
     _discover_package(package_path, package_path)
 }
 
-fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Arc<Package>> {
+fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Package> {
     let (is_package, files, dirs) = fs::read_dir(package_path)
         .map_err(PackageDiscoveryError::CannotReadDir)?
         .par_bridge()
@@ -101,18 +100,18 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Ar
     }
 
     let pypath = get_pypath(root_package_path, package_path, false)?;
-    let mut package = Package::new(pypath, package_path.to_owned());
+    let mut package = Package::new(pypath, package_path.to_path_buf());
 
     for module in files
         .par_iter()
         .filter(|file| file.path().extension().unwrap_or_default() == "py")
         .map(|file| {
             let pypath = get_pypath(root_package_path, &file.path(), true)?;
-            Ok(Module::new(pypath, file.path().to_owned()))
+            Ok(Module::new(pypath, file.path().to_path_buf()))
         })
         .collect::<Result<Vec<_>>>()?
     {
-        package.add_module(Arc::new(module));
+        package.add_module(module);
     }
 
     for child in dirs
@@ -123,7 +122,7 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Ar
     {
         match child {
             Ok(child) => {
-                package.add_child(Arc::clone(&child));
+                package.add_child(child);
             }
             Err(e) => match e.root_cause().downcast_ref::<PackageDiscoveryError>() {
                 Some(PackageDiscoveryError::NotAPythonPackage) => continue,
@@ -132,7 +131,7 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Ar
         }
     }
 
-    Ok(Arc::new(package))
+    Ok(package)
 }
 
 fn get_pypath(root_package_path: &Path, path: &Path, is_file: bool) -> Result<String> {

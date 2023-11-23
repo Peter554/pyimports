@@ -4,31 +4,33 @@ use rustpython_parser::{
     self,
     ast::{Mod, Stmt},
 };
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
-use std::{collections::HashMap, sync::Arc};
 
 use crate::ast_visit;
 use crate::indexing;
 use crate::package_discovery;
 
-pub type Imports = HashMap<String, HashSet<String>>;
+pub type Imports<'a> = HashMap<&'a str, HashSet<&'a str>>;
 
-pub fn discover_imports(modules_by_pypath: &indexing::ModulesByPypath) -> Result<Imports> {
+pub fn discover_imports<'a>(
+    modules_by_pypath: &'a indexing::ModulesByPypath,
+) -> Result<Imports<'a>> {
     modules_by_pypath
         .values()
         .par_bridge()
         .map(|module| {
-            let imports = get_imports_for_module(Arc::clone(module), modules_by_pypath)?;
-            Ok((module.pypath.clone(), imports))
+            let imports = get_imports_for_module(module, modules_by_pypath)?;
+            Ok((module.pypath.as_str(), imports))
         })
         .collect::<Result<Imports>>()
 }
 
-fn get_imports_for_module(
-    module: Arc<package_discovery::Module>,
-    modules_by_pypath: &indexing::ModulesByPypath,
-) -> Result<HashSet<String>> {
+fn get_imports_for_module<'a>(
+    module: &'a package_discovery::Module,
+    modules_by_pypath: &'a indexing::ModulesByPypath,
+) -> Result<HashSet<&'a str>> {
     let code = fs::read_to_string(&module.path)?;
     let ast = rustpython_parser::parse(
         &code,
@@ -44,7 +46,7 @@ fn get_imports_for_module(
     };
 
     let mut visitor = ImportVisitor {
-        module: Arc::clone(&module),
+        module,
         modules_by_pypath,
         imports: HashSet::new(),
     };
@@ -54,9 +56,9 @@ fn get_imports_for_module(
 }
 
 struct ImportVisitor<'a> {
-    module: Arc<package_discovery::Module>,
-    modules_by_pypath: &'a indexing::ModulesByPypath,
-    imports: HashSet<String>,
+    module: &'a package_discovery::Module,
+    modules_by_pypath: &'a indexing::ModulesByPypath<'a>,
+    imports: HashSet<&'a str>,
 }
 
 impl<'a> ast_visit::StatementVisitor for ImportVisitor<'a> {
@@ -65,9 +67,9 @@ impl<'a> ast_visit::StatementVisitor for ImportVisitor<'a> {
             Stmt::Import(stmt) => {
                 for name in stmt.names.iter() {
                     for pypath in [name.name.to_string(), format!("{}.__init__", name.name)] {
-                        match self.modules_by_pypath.get(&pypath) {
+                        match self.modules_by_pypath.get(pypath.as_str()) {
                             Some(imported_module) => {
-                                self.imports.insert(imported_module.pypath.clone());
+                                self.imports.insert(imported_module.pypath.as_str());
                             }
                             None => continue,
                         }
@@ -116,9 +118,9 @@ impl<'a> ast_visit::StatementVisitor for ImportVisitor<'a> {
                         format!("{}.{}.__init__", &pypath_prefix, name.name),
                         format!("{}.__init__", &pypath_prefix),
                     ] {
-                        match self.modules_by_pypath.get(&pypath) {
+                        match self.modules_by_pypath.get(pypath.as_str()) {
                             Some(imported_module) => {
-                                self.imports.insert(imported_module.pypath.clone());
+                                self.imports.insert(imported_module.pypath.as_str());
                                 break;
                             }
                             None => continue,
@@ -143,10 +145,10 @@ mod tests {
     fn test_get_imports_for_module() {
         let root_package_path = Path::new("./example");
         let root_package = package_discovery::discover_package(root_package_path).unwrap();
-        let modules_by_pypath = indexing::get_modules_by_pypath(Arc::clone(&root_package)).unwrap();
+        let modules_by_pypath = indexing::get_modules_by_pypath(&root_package).unwrap();
 
         let module = modules_by_pypath.get("example.__init__").unwrap();
-        let imports = get_imports_for_module(Arc::clone(module), &modules_by_pypath).unwrap();
+        let imports = get_imports_for_module(module, &modules_by_pypath).unwrap();
         assert_eq!(
             imports,
             [
@@ -167,12 +169,11 @@ mod tests {
                 "example.child5.__init__",
             ]
             .into_iter()
-            .map(|i| i.to_string())
             .collect::<HashSet<_>>()
         );
 
         let module = modules_by_pypath.get("example.child.__init__").unwrap();
-        let imports = get_imports_for_module(Arc::clone(module), &modules_by_pypath).unwrap();
+        let imports = get_imports_for_module(module, &modules_by_pypath).unwrap();
         assert_eq!(
             imports,
             [
@@ -193,12 +194,11 @@ mod tests {
                 "example.child5.__init__",
             ]
             .into_iter()
-            .map(|i| i.to_string())
             .collect::<HashSet<_>>()
         );
 
         let module = modules_by_pypath.get("example.z").unwrap();
-        let imports = get_imports_for_module(Arc::clone(module), &modules_by_pypath).unwrap();
+        let imports = get_imports_for_module(module, &modules_by_pypath).unwrap();
         assert_eq!(
             imports,
             [
@@ -219,12 +219,11 @@ mod tests {
                 "example.child5.__init__",
             ]
             .into_iter()
-            .map(|i| i.to_string())
             .collect::<HashSet<_>>()
         );
 
         let module = modules_by_pypath.get("example.child.c_z").unwrap();
-        let imports = get_imports_for_module(Arc::clone(module), &modules_by_pypath).unwrap();
+        let imports = get_imports_for_module(module, &modules_by_pypath).unwrap();
         assert_eq!(
             imports,
             [
@@ -245,7 +244,6 @@ mod tests {
                 "example.child5.__init__",
             ]
             .into_iter()
-            .map(|i| i.to_string())
             .collect::<HashSet<_>>()
         );
     }

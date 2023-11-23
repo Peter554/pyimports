@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::sync::Arc;
 use std::{env, path::Path};
 
 use pyimports::import_discovery;
@@ -11,8 +10,8 @@ pub fn main() -> Result<()> {
     let root_package_path = Path::new(&args[1]);
 
     let package = package_discovery::discover_package(root_package_path)?;
-    let packages_by_pypath = indexing::get_packages_by_pypath(Arc::clone(&package))?;
-    let modules_by_pypath = indexing::get_modules_by_pypath(Arc::clone(&package))?;
+    let packages_by_pypath = indexing::get_packages_by_pypath(&package)?;
+    let modules_by_pypath = indexing::get_modules_by_pypath(&package)?;
     let imports = import_discovery::discover_imports(&modules_by_pypath)?;
 
     // dbg!(&package);
