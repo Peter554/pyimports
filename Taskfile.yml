@@ -1,0 +1,29 @@
+version: '3'
+
+tasks:
+  test:
+    cmds:
+      - cargo test
+
+  clippy:
+    cmds:
+      - cargo clippy --all-targets -- -D warnings
+
+  clippy.fix:
+    cmds:
+      - cargo clippy --fix --allow-staged
+
+  fmt:
+    cmds:
+      - cargo fmt
+
+  fmt.check:
+    cmds:
+      - cargo fmt --check
+
+
+  check:
+    cmds:
+      - task: test
+      - task: clippy
+      - task: fmt.check
