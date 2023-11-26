@@ -12,10 +12,11 @@ fn main() -> Result<()> {
         if args.len() == 2 {
             import_graph
         } else {
+            import_graph = import_graph.subgraph(&args[2])?;
             for child_package in import_graph.child_packages(&args[2])? {
                 import_graph = import_graph.squash_package(&child_package)?;
             }
-            import_graph.subgraph(&args[2])?
+            import_graph
         }
     };
 

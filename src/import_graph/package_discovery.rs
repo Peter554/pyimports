@@ -6,9 +6,9 @@ use std::{fs, path::Path};
 
 use super::errors::Error;
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Package {
-    pub pypath: String,
+    pub pypath: Arc<String>,
     pub children: Vec<Arc<Package>>,
     pub modules: Vec<Arc<Module>>,
 }
@@ -16,7 +16,7 @@ pub struct Package {
 impl Package {
     fn new(pypath: String) -> Self {
         Package {
-            pypath,
+            pypath: Arc::new(pypath),
             children: vec![],
             modules: vec![],
         }
@@ -33,13 +33,16 @@ impl Package {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Module {
-    pub pypath: String,
-    pub(super) path: PathBuf,
+    pub pypath: Arc<String>,
+    pub(super) path: Arc<PathBuf>,
 }
 
 impl Module {
     fn new(pypath: String, path: PathBuf) -> Self {
-        Module { pypath, path }
+        Module {
+            pypath: Arc::new(pypath),
+            path: Arc::new(path),
+        }
     }
 }
 

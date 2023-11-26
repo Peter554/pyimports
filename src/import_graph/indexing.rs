@@ -9,8 +9,8 @@ use super::{
     package_discovery::{Module, Package},
 };
 
-pub type PackagesByPypath = HashMap<String, Arc<Package>>;
-pub type ModulesByPypath = HashMap<String, Arc<Module>>;
+pub type PackagesByPypath = HashMap<Arc<String>, Arc<Package>>;
+pub type ModulesByPypath = HashMap<Arc<String>, Arc<Module>>;
 pub type PackagesByModule = HashMap<Arc<Module>, Arc<Package>>;
 
 pub fn get_packages_by_pypath(root_package: Arc<Package>) -> Result<PackagesByPypath> {

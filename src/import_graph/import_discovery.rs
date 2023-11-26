@@ -37,7 +37,7 @@ fn get_imports_for_module(
     module: Arc<Module>,
     modules_by_pypath: &indexing::ModulesByPypath,
 ) -> Result<HashSet<Arc<Module>>> {
-    let code = fs::read_to_string(&module.path)?;
+    let code = fs::read_to_string(module.path.as_ref())?;
     let ast = rustpython_parser::parse(
         &code,
         rustpython_parser::Mode::Module,
@@ -74,7 +74,7 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
         match stmt {
             Stmt::Import(stmt) => {
                 for name in stmt.names.iter() {
-                    if !(name.name == self.root_package.pypath
+                    if !(name.name.as_str() == self.root_package.pypath.as_ref()
                         || name
                             .name
                             .as_str()
@@ -86,7 +86,7 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
 
                     let mut found_module = false;
                     for pypath in [name.name.to_string(), format!("{}.__init__", name.name)] {
-                        match self.modules_by_pypath.get(pypath.as_str()) {
+                        match self.modules_by_pypath.get(&pypath) {
                             Some(imported_module) => {
                                 self.imports.insert(Arc::clone(imported_module));
                                 found_module = true;
@@ -136,7 +136,7 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                     _ => format!("{}.{}", level_pypath_prefix, module_pypath_prefix),
                 };
 
-                if !(pypath_prefix == self.root_package.pypath
+                if !(pypath_prefix.as_str() == self.root_package.pypath.as_ref()
                     || pypath_prefix
                         .starts_with((self.root_package.pypath.to_string() + ".").as_str()))
                 {
@@ -152,7 +152,7 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                         format!("{}.{}.__init__", &pypath_prefix, name.name),
                         format!("{}.__init__", &pypath_prefix),
                     ] {
-                        match self.modules_by_pypath.get(pypath.as_str()) {
+                        match self.modules_by_pypath.get(&pypath) {
                             Some(imported_module) => {
                                 self.imports.insert(Arc::clone(imported_module));
                                 found_module = true;

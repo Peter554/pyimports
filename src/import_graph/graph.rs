@@ -22,31 +22,31 @@ impl ImportGraph {
     pub fn packages(&self) -> HashSet<String> {
         self.packages_by_pypath
             .values()
-            .map(|package| package.pypath.clone())
+            .map(|package| package.pypath.to_string())
             .collect()
     }
 
     pub fn modules(&self) -> HashSet<String> {
         self.modules_by_pypath
             .values()
-            .map(|module| module.pypath.clone())
+            .map(|module| module.pypath.to_string())
             .collect()
     }
 
     pub fn package_from_module(&self, module: &str) -> Result<String> {
-        let module = match self.modules_by_pypath.get(module) {
+        let module = match self.modules_by_pypath.get(&module.to_string()) {
             Some(module) => module,
             None => Err(Error::ModuleNotFound(module.to_string()))?,
         };
         Ok(self
             .packages_by_module
             .get(module)
-            .map(|p| p.pypath.clone())
+            .map(|p| p.pypath.to_string())
             .unwrap())
     }
 
     pub fn child_packages(&self, package: &str) -> Result<HashSet<String>> {
-        let package: &Package = match self.packages_by_pypath.get(package) {
+        let package: &Package = match self.packages_by_pypath.get(&package.to_string()) {
             Some(package) => package,
             None => {
                 return Err(Error::PackageNotFound(package.to_string()))?;
@@ -54,13 +54,13 @@ impl ImportGraph {
         };
         let mut packages = HashSet::new();
         for child in package.children.iter() {
-            packages.insert(child.pypath.clone());
+            packages.insert(child.pypath.to_string());
         }
         Ok(packages)
     }
 
     pub fn child_modules(&self, package: &str) -> Result<HashSet<String>> {
-        let package: &Package = match self.packages_by_pypath.get(package) {
+        let package: &Package = match self.packages_by_pypath.get(&package.to_string()) {
             Some(package) => package,
             None => {
                 return Err(Error::PackageNotFound(package.to_string()))?;
@@ -68,7 +68,7 @@ impl ImportGraph {
         };
         let mut modules = HashSet::new();
         for module in package.modules.iter() {
-            modules.insert(module.pypath.clone());
+            modules.insert(module.pypath.to_string());
         }
         Ok(modules)
     }
@@ -77,22 +77,22 @@ impl ImportGraph {
         Ok(self
             ._descendant_packages(package)?
             .iter()
-            .map(|p| p.pypath.clone())
+            .map(|p| p.pypath.to_string())
             .collect())
     }
 
-    fn _descendant_packages(&self, package: &str) -> Result<HashSet<Arc<Package>>> {
-        let package: &Package = match self.packages_by_pypath.get(package) {
+    fn _descendant_packages(&self, package: &str) -> Result<Vec<Arc<Package>>> {
+        let package: &Package = match self.packages_by_pypath.get(&package.to_string()) {
             Some(package) => package,
             None => {
                 return Err(Error::PackageNotFound(package.to_string()))?;
             }
         };
-        let mut packages = HashSet::new();
+        let mut packages = vec![];
         let mut q = vec![package];
         while let Some(package) = q.pop() {
             for child in package.children.iter() {
-                packages.insert(Arc::clone(child));
+                packages.push(Arc::clone(child));
                 q.push(child);
             }
         }
@@ -103,12 +103,12 @@ impl ImportGraph {
         Ok(self
             ._descendant_modules(package)?
             .iter()
-            .map(|m| m.pypath.clone())
+            .map(|m| m.pypath.to_string())
             .collect())
     }
 
     fn _descendant_modules(&self, package: &str) -> Result<HashSet<Arc<Module>>> {
-        let package: &Package = match self.packages_by_pypath.get(package) {
+        let package: &Package = match self.packages_by_pypath.get(&package.to_string()) {
             Some(package) => package,
             None => {
                 return Err(Error::PackageNotFound(package.to_string()))?;
@@ -132,10 +132,10 @@ impl ImportGraph {
             .iter()
             .map(|(module, imported_modules)| {
                 (
-                    module.pypath.clone(),
+                    module.pypath.to_string(),
                     imported_modules
                         .iter()
-                        .map(|imported_module| imported_module.pypath.clone())
+                        .map(|imported_module| imported_module.pypath.to_string())
                         .collect(),
                 )
             })
@@ -155,9 +155,9 @@ impl ImportGraph {
     }
 
     pub fn modules_directly_imported_by(&self, module_or_package: &str) -> Result<HashSet<String>> {
-        let from_modules = match self.packages_by_pypath.get(module_or_package) {
+        let from_modules = match self.packages_by_pypath.get(&module_or_package.to_string()) {
             Some(_) => self._descendant_modules(module_or_package)?,
-            None => match self.modules_by_pypath.get(module_or_package) {
+            None => match self.modules_by_pypath.get(&module_or_package.to_string()) {
                 Some(module) => HashSet::from([Arc::clone(module)]),
                 None => Err(Error::ModuleNotFound(module_or_package.to_string()))?,
             },
@@ -169,7 +169,7 @@ impl ImportGraph {
                     .get(&from_module)
                     .unwrap()
                     .iter()
-                    .map(|module| module.pypath.clone())
+                    .map(|module| module.pypath.to_string())
                     .collect::<Vec<_>>(),
             )
         }
@@ -177,9 +177,9 @@ impl ImportGraph {
     }
 
     pub fn modules_that_directly_import(&self, module_or_package: &str) -> Result<HashSet<String>> {
-        let to_modules = match self.packages_by_pypath.get(module_or_package) {
+        let to_modules = match self.packages_by_pypath.get(&module_or_package.to_string()) {
             Some(_) => self._descendant_modules(module_or_package)?,
-            None => match self.modules_by_pypath.get(module_or_package) {
+            None => match self.modules_by_pypath.get(&module_or_package.to_string()) {
                 Some(module) => HashSet::from([Arc::clone(module)]),
                 None => Err(Error::ModuleNotFound(module_or_package.to_string()))?,
             },
@@ -191,7 +191,7 @@ impl ImportGraph {
                     .get(&to_module)
                     .unwrap()
                     .iter()
-                    .map(|module| module.pypath.clone())
+                    .map(|module| module.pypath.to_string())
                     .collect::<Vec<_>>(),
             )
         }
@@ -199,9 +199,9 @@ impl ImportGraph {
     }
 
     pub fn downstream_modules(&self, module_or_package: &str) -> Result<HashSet<String>> {
-        let from_modules = match self.packages_by_pypath.get(module_or_package) {
+        let from_modules = match self.packages_by_pypath.get(&module_or_package.to_string()) {
             Some(_) => self._descendant_modules(module_or_package)?,
-            None => match self.modules_by_pypath.get(module_or_package) {
+            None => match self.modules_by_pypath.get(&module_or_package.to_string()) {
                 Some(module) => HashSet::from([Arc::clone(module)]),
                 None => Err(Error::ModuleNotFound(module_or_package.to_string()))?,
             },
@@ -216,7 +216,7 @@ impl ImportGraph {
                     .map(Arc::clone)
                     .collect::<Vec<_>>()
             })
-            .map(|m| m.pypath.clone())
+            .map(|m| m.pypath.to_string())
             .skip(1) // Remove starting module from the results.
             .collect::<Vec<_>>();
             downstream_modules.extend(reachable_modules);
@@ -225,9 +225,9 @@ impl ImportGraph {
     }
 
     pub fn upstream_modules(&self, module_or_package: &str) -> Result<HashSet<String>> {
-        let to_modules = match self.packages_by_pypath.get(module_or_package) {
+        let to_modules = match self.packages_by_pypath.get(&module_or_package.to_string()) {
             Some(_) => self._descendant_modules(module_or_package)?,
-            None => match self.modules_by_pypath.get(module_or_package) {
+            None => match self.modules_by_pypath.get(&module_or_package.to_string()) {
                 Some(module) => HashSet::from([Arc::clone(module)]),
                 None => Err(Error::ModuleNotFound(module_or_package.to_string()))?,
             },
@@ -242,7 +242,7 @@ impl ImportGraph {
                     .map(Arc::clone)
                     .collect::<Vec<_>>()
             })
-            .map(|m| m.pypath.clone())
+            .map(|m| m.pypath.to_string())
             .skip(1) // Remove starting module from the results.
             .collect::<Vec<_>>();
             upstream_modules.extend(reachable_modules);
@@ -255,16 +255,28 @@ impl ImportGraph {
         from_module_or_package: &str,
         to_module_or_package: &str,
     ) -> Result<bool> {
-        let from_modules = match self.packages_by_pypath.get(from_module_or_package) {
+        let from_modules = match self
+            .packages_by_pypath
+            .get(&from_module_or_package.to_string())
+        {
             Some(_) => self._descendant_modules(from_module_or_package)?,
-            None => match self.modules_by_pypath.get(from_module_or_package) {
+            None => match self
+                .modules_by_pypath
+                .get(&from_module_or_package.to_string())
+            {
                 Some(module) => HashSet::from([Arc::clone(module)]),
                 None => Err(Error::ModuleNotFound(from_module_or_package.to_string()))?,
             },
         };
-        let to_modules = match self.packages_by_pypath.get(to_module_or_package) {
+        let to_modules = match self
+            .packages_by_pypath
+            .get(&to_module_or_package.to_string())
+        {
             Some(_) => self._descendant_modules(to_module_or_package)?,
-            None => match self.modules_by_pypath.get(to_module_or_package) {
+            None => match self
+                .modules_by_pypath
+                .get(&to_module_or_package.to_string())
+            {
                 Some(module) => HashSet::from([Arc::clone(module)]),
                 None => Err(Error::ModuleNotFound(to_module_or_package.to_string()))?,
             },
@@ -283,11 +295,11 @@ impl ImportGraph {
     }
 
     pub fn shortest_path(&self, from_module: &str, to_module: &str) -> Result<Option<Vec<String>>> {
-        let from_module = match self.modules_by_pypath.get(from_module) {
+        let from_module = match self.modules_by_pypath.get(&from_module.to_string()) {
             Some(module) => Arc::clone(module),
             None => Err(Error::ModuleNotFound(from_module.to_string()))?,
         };
-        let to_module = match self.modules_by_pypath.get(to_module) {
+        let to_module = match self.modules_by_pypath.get(&to_module.to_string()) {
             Some(module) => Arc::clone(module),
             None => Err(Error::ModuleNotFound(to_module.to_string()))?,
         };
@@ -311,7 +323,8 @@ impl ImportGraph {
             },
             |module| *module == to_module,
         );
-        shortest_path.map(|shortest_path| shortest_path.iter().map(|m| m.pypath.clone()).collect())
+        shortest_path
+            .map(|shortest_path| shortest_path.iter().map(|m| m.pypath.to_string()).collect())
     }
 
     pub fn ignore_imports<'a>(
@@ -320,11 +333,11 @@ impl ImportGraph {
     ) -> Result<ImportGraph> {
         let mut imports_to_remove_ = vec![];
         for (from_module, to_module) in imports_to_remove {
-            let from_module = match self.modules_by_pypath.get(from_module) {
+            let from_module = match self.modules_by_pypath.get(&from_module.to_string()) {
                 Some(module) => Arc::clone(module),
                 None => Err(Error::ModuleNotFound(from_module.to_string()))?,
             };
-            let to_module = match self.modules_by_pypath.get(to_module) {
+            let to_module = match self.modules_by_pypath.get(&to_module.to_string()) {
                 Some(module) => Arc::clone(module),
                 None => Err(Error::ModuleNotFound(to_module.to_string()))?,
             };
@@ -332,8 +345,8 @@ impl ImportGraph {
                 imports_to_remove_.push((from_module, to_module));
             } else {
                 return Err(Error::ImportNotFound(
-                    from_module.pypath.clone(),
-                    to_module.pypath.clone(),
+                    from_module.pypath.to_string(),
+                    to_module.pypath.to_string(),
                 ))?;
             }
         }
@@ -349,22 +362,21 @@ impl ImportGraph {
     }
 
     pub fn subgraph(&self, package: &str) -> Result<ImportGraph> {
-        let this_package = match self.packages_by_pypath.get(package) {
+        let this_package = match self.packages_by_pypath.get(&package.to_string()) {
             Some(package) => package,
             None => {
                 return Err(Error::PackageNotFound(package.to_string()))?;
             }
         };
 
-        let packages_to_keep = {
+        let package_pypaths_to_keep = {
             let mut packages_to_keep = self._descendant_packages(package)?;
-            packages_to_keep.insert(Arc::clone(this_package));
+            packages_to_keep.push(Arc::clone(this_package));
             packages_to_keep
+                .iter()
+                .map(|p| p.pypath.clone())
+                .collect::<HashSet<_>>()
         };
-        let package_pypaths_to_keep = packages_to_keep
-            .iter()
-            .map(|p| p.pypath.clone())
-            .collect::<HashSet<_>>();
         let modules_to_keep = self._descendant_modules(package)?;
         let module_pypaths_to_keep = modules_to_keep
             .iter()
@@ -387,7 +399,9 @@ impl ImportGraph {
 
         let mut packages_by_module = self.packages_by_module.clone();
         for (module, package) in packages_by_module.clone().iter() {
-            if !modules_to_keep.contains(module) || !packages_to_keep.contains(package) {
+            if !modules_to_keep.contains(module)
+                || !package_pypaths_to_keep.contains(&package.pypath)
+            {
                 packages_by_module.remove(module);
             }
         }
@@ -417,7 +431,7 @@ impl ImportGraph {
     }
 
     pub fn squash_package(&self, package: &str) -> Result<ImportGraph> {
-        let package_to_squash = match self.packages_by_pypath.get(package) {
+        let package_to_squash = match self.packages_by_pypath.get(&package.to_string()) {
             Some(package) => package,
             None => {
                 return Err(Error::PackageNotFound(package.to_string()))?;
@@ -431,8 +445,8 @@ impl ImportGraph {
         let init_module_pypath = binding.first().unwrap();
         let init_module = self.modules_by_pypath.get(init_module_pypath).unwrap();
 
-        let packages_to_replace = self._descendant_packages(package)?;
-        let package_pypaths_to_replace = packages_to_replace
+        let package_pypaths_to_replace = self
+            ._descendant_packages(package)?
             .iter()
             .map(|p| p.pypath.clone())
             .collect::<HashSet<_>>();
@@ -462,13 +476,15 @@ impl ImportGraph {
 
         let mut packages_by_module = self.packages_by_module.clone();
         for (module, package) in packages_by_module.clone().iter() {
-            if modules_to_replace.contains(module) && packages_to_replace.contains(package) {
+            if modules_to_replace.contains(module)
+                && package_pypaths_to_replace.contains(&package.pypath)
+            {
                 packages_by_module.remove(module);
                 packages_by_module.insert(Arc::clone(init_module), Arc::clone(package_to_squash));
             } else if modules_to_replace.contains(module) {
                 packages_by_module.remove(module);
                 packages_by_module.insert(Arc::clone(init_module), Arc::clone(package));
-            } else if packages_to_replace.contains(package) {
+            } else if package_pypaths_to_replace.contains(&package.pypath) {
                 packages_by_module.remove(module);
                 packages_by_module.insert(Arc::clone(module), Arc::clone(package_to_squash));
             }
