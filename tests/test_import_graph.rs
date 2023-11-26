@@ -432,6 +432,18 @@ fn test_direct_imports() {
 }
 
 #[test]
+fn test_direct_import_exists() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert!(import_graph
+        .direct_import_exists("somesillypackage.a", "somesillypackage.b")
+        .unwrap());
+    assert!(!import_graph
+        .direct_import_exists("somesillypackage.b", "somesillypackage.a")
+        .unwrap());
+}
+
+#[test]
 fn test_modules_directly_imported_by_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
     let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
@@ -1156,7 +1168,6 @@ fn test_squash_package() {
                 "somesillypackage.d",
                 "somesillypackage.e",
                 "somesillypackage.__init__",
-                "somesillypackage.child1.__init__",
                 "somesillypackage.child2.__init__",
                 "somesillypackage.child3.__init__",
                 "somesillypackage.child4.__init__",

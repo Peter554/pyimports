@@ -20,11 +20,15 @@ fn main() -> Result<()> {
         }
     };
 
-    let imports = import_graph.direct_imports_flat();
-    println!("source, target");
-    for (from_module, to_module) in imports {
-        println!("{}, {}", from_module, to_module);
+    println!("digraph {{");
+    println!("    concentrate=true;");
+    for module in import_graph.modules() {
+        println!("    \"{}\";", module);
     }
+    for (from_module, to_module) in import_graph.direct_imports_flat() {
+        println!("    \"{}\" -> \"{}\";", from_module, to_module);
+    }
+    println!("}}");
 
     Ok(())
 }
