@@ -1,7 +1,7 @@
 use maplit::hashset;
 use std::path::Path;
 
-use pyimports::ImportGraphBuilder;
+use pyimports::{Error, ImportGraphBuilder};
 
 #[test]
 fn test_packages() {
@@ -816,4 +816,52 @@ fn test_path_exists_packages() {
     assert!(!import_graph
         .path_exists("somesillypackage.child2", "somesillypackage.child1")
         .unwrap(),);
+}
+
+#[test]
+fn test_without_imports() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert_eq!(
+        import_graph
+            .shortest_path("somesillypackage.a", "somesillypackage.e")
+            .unwrap()
+            .unwrap(),
+        vec![
+            "somesillypackage.a",
+            "somesillypackage.c",
+            "somesillypackage.e"
+        ],
+    );
+
+    let import_graph = import_graph
+        .without_imports([("somesillypackage.a", "somesillypackage.c")])
+        .unwrap();
+    assert_eq!(
+        import_graph
+            .shortest_path("somesillypackage.a", "somesillypackage.e")
+            .unwrap()
+            .unwrap(),
+        vec![
+            "somesillypackage.a",
+            "somesillypackage.b",
+            "somesillypackage.c",
+            "somesillypackage.e"
+        ],
+    );
+
+    let import_graph = import_graph
+        .without_imports([("somesillypackage.a", "somesillypackage.b")])
+        .unwrap();
+    assert!(import_graph
+        .shortest_path("somesillypackage.a", "somesillypackage.e")
+        .unwrap()
+        .is_none());
+
+    let result = import_graph.without_imports([("somesillypackage.a", "somesillypackage.b")]);
+    assert!(matches!(
+        result.unwrap_err().downcast::<Error>().unwrap(),
+        Error::ImportNotFound(_, _)
+    ));
 }

@@ -8,7 +8,7 @@ use super::import_discovery;
 use super::indexing;
 use super::package_discovery::{Module, Package};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ImportGraph {
     pub(super) packages_by_pypath: indexing::PackagesByPypath,
     pub(super) modules_by_pypath: indexing::ModulesByPypath,
@@ -258,5 +258,39 @@ impl ImportGraph {
             |module| *module == to_module,
         );
         shortest_path.map(|shortest_path| shortest_path.iter().map(|m| m.pypath.clone()).collect())
+    }
+
+    pub fn without_imports<'a>(
+        &self,
+        imports_to_remove: impl IntoIterator<Item = (&'a str, &'a str)>,
+    ) -> Result<ImportGraph> {
+        let mut imports_to_remove_ = vec![];
+        for (from_module, to_module) in imports_to_remove {
+            let from_module = match self.modules_by_pypath.get(from_module) {
+                Some(module) => Arc::clone(module),
+                None => Err(Error::ModuleNotFound(from_module.to_string()))?,
+            };
+            let to_module = match self.modules_by_pypath.get(to_module) {
+                Some(module) => Arc::clone(module),
+                None => Err(Error::ModuleNotFound(to_module.to_string()))?,
+            };
+            if self.imports.get(&from_module).unwrap().contains(&to_module) {
+                imports_to_remove_.push((from_module, to_module));
+            } else {
+                return Err(Error::ImportNotFound(
+                    from_module.pypath.clone(),
+                    to_module.pypath.clone(),
+                ))?;
+            }
+        }
+        let mut import_graph = self.clone();
+        for (from_module, to_module) in imports_to_remove_ {
+            import_graph
+                .imports
+                .get_mut(&from_module)
+                .unwrap()
+                .remove(&to_module);
+        }
+        Ok(import_graph)
     }
 }

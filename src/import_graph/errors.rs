@@ -15,4 +15,7 @@ pub enum Error {
 
     #[error("module not found")]
     ModuleNotFound(String),
+
+    #[error("import not found")]
+    ImportNotFound(String, String),
 }
