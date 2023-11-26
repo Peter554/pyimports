@@ -1,6 +1,7 @@
 use anyhow::Result;
 use rayon::prelude::*;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::{fs, path::Path};
 
 use super::errors::Error;
@@ -8,8 +9,8 @@ use super::errors::Error;
 #[derive(Debug, PartialEq, Eq)]
 pub struct Package {
     pub pypath: String,
-    pub children: Vec<Package>,
-    pub modules: Vec<Module>,
+    pub children: Vec<Arc<Package>>,
+    pub modules: Vec<Arc<Module>>,
 }
 
 impl Package {
@@ -21,11 +22,11 @@ impl Package {
         }
     }
 
-    fn add_child(&mut self, child: Package) {
+    fn add_child(&mut self, child: Arc<Package>) {
         self.children.push(child);
     }
 
-    fn add_module(&mut self, module: Module) {
+    fn add_module(&mut self, module: Arc<Module>) {
         self.modules.push(module);
     }
 }
@@ -42,11 +43,11 @@ impl Module {
     }
 }
 
-pub fn discover_package(root_package_path: PathBuf) -> Result<Package> {
-    _discover_package(root_package_path.as_path(), root_package_path.as_path())
+pub fn discover_package(root_package_path: &Path) -> Result<Arc<Package>> {
+    _discover_package(root_package_path, root_package_path)
 }
 
-fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Package> {
+fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Arc<Package>> {
     let (is_package, files, dirs) = fs::read_dir(package_path)
         .map_err(Error::CannotReadDir)?
         .par_bridge()
@@ -93,7 +94,7 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Pa
         })
         .collect::<Result<Vec<_>>>()?
     {
-        package.add_module(module);
+        package.add_module(Arc::new(module));
     }
 
     for child in dirs
@@ -104,7 +105,7 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Pa
     {
         match child {
             Ok(child) => {
-                package.add_child(child);
+                package.add_child(Arc::clone(&child));
             }
             Err(e) => match e.root_cause().downcast_ref::<Error>() {
                 Some(Error::NotAPythonPackage) => continue,
@@ -113,7 +114,7 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Pa
         }
     }
 
-    Ok(package)
+    Ok(Arc::new(package))
 }
 
 fn get_pypath(root_package_path: &Path, path: &Path, is_file: bool) -> Result<String> {
