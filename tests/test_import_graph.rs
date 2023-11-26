@@ -105,6 +105,22 @@ fn test_packages_from_modules() {
 }
 
 #[test]
+fn test_child_packages() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert_eq!(
+        import_graph.child_packages("somesillypackage").unwrap(),
+        hashset! {
+            "somesillypackage.child1",
+            "somesillypackage.child2",
+            "somesillypackage.child3",
+            "somesillypackage.child4",
+            "somesillypackage.child5",
+        },
+    );
+}
+
+#[test]
 fn test_child_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
     let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();

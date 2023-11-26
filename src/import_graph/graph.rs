@@ -98,6 +98,20 @@ impl ImportGraph {
         Ok(packages)
     }
 
+    pub fn child_packages(&self, package: &str) -> Result<HashSet<&str>> {
+        let package: &Package = match self.borrow_packages_by_pypath().get(package) {
+            Some(package) => package,
+            None => {
+                return Err(Error::PackageNotFound(package.to_string()))?;
+            }
+        };
+        let mut packages = HashSet::new();
+        for child in package.children.iter() {
+            packages.insert(child.pypath.as_str());
+        }
+        Ok(packages)
+    }
+
     pub fn child_modules(&self, package: &str) -> Result<HashSet<&str>> {
         let package: &Package = match self.borrow_packages_by_pypath().get(package) {
             Some(package) => package,
