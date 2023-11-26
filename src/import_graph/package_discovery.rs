@@ -33,7 +33,7 @@ impl Package {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Module {
     pub pypath: String,
-    pub(crate) path: PathBuf,
+    pub(super) path: PathBuf,
 }
 
 impl Module {
@@ -42,8 +42,8 @@ impl Module {
     }
 }
 
-pub fn discover_package(root_package_path: &Path) -> Result<Package> {
-    _discover_package(root_package_path, root_package_path)
+pub fn discover_package(root_package_path: PathBuf) -> Result<Package> {
+    _discover_package(root_package_path.as_path(), root_package_path.as_path())
 }
 
 fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Package> {

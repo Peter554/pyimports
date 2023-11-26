@@ -1,12 +1,12 @@
 use maplit::hashset;
 use std::path::Path;
 
-use pyimports::ImportGraph;
+use pyimports::ImportGraphBuilder;
 
 #[test]
 fn test_packages() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.packages(),
         hashset! {
@@ -23,7 +23,7 @@ fn test_packages() {
 #[test]
 fn test_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.modules(),
         hashset! {
@@ -57,7 +57,7 @@ fn test_modules() {
 #[test]
 fn test_package_from_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .package_from_module("somesillypackage.__init__")
@@ -87,7 +87,7 @@ fn test_package_from_module() {
 #[test]
 fn test_packages_from_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .packages_from_modules(hashset! {
@@ -107,7 +107,7 @@ fn test_packages_from_modules() {
 #[test]
 fn test_child_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.child_modules("somesillypackage").unwrap(),
         hashset! {
@@ -171,7 +171,7 @@ fn test_child_modules() {
 #[test]
 fn test_descendant_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.descendant_modules("somesillypackage").unwrap(),
         hashset! {
@@ -251,7 +251,7 @@ fn test_descendant_modules() {
 #[test]
 fn test_modules_directly_imported_by_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_directly_imported_by("somesillypackage.__init__")
@@ -345,7 +345,7 @@ fn test_modules_directly_imported_by_module() {
 #[test]
 fn test_modules_directly_imported_by_package() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_directly_imported_by("somesillypackage")
@@ -396,7 +396,7 @@ fn test_modules_directly_imported_by_package() {
 #[test]
 fn test_modules_that_directly_import_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_that_directly_import("somesillypackage.__init__")
@@ -453,7 +453,7 @@ fn test_modules_that_directly_import_module() {
 #[test]
 fn test_modules_that_directly_import_package() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_that_directly_import("somesillypackage")
@@ -496,7 +496,7 @@ fn test_modules_that_directly_import_package() {
 #[test]
 fn test_downstream_modules_of_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .downstream_modules("somesillypackage.a")
@@ -528,7 +528,7 @@ fn test_downstream_modules_of_module() {
 #[test]
 fn test_downstream_modules_of_package() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.downstream_modules("somesillypackage").unwrap(),
         hashset! {
@@ -584,7 +584,7 @@ fn test_downstream_modules_of_package() {
 #[test]
 fn test_upstream_modules_of_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.upstream_modules("somesillypackage.a").unwrap(),
         hashset! {
@@ -623,7 +623,7 @@ fn test_upstream_modules_of_module() {
 #[test]
 fn test_upstream_modules_of_package() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.upstream_modules("somesillypackage").unwrap(),
         hashset! {
@@ -664,7 +664,7 @@ fn test_upstream_modules_of_package() {
 #[test]
 fn test_shortest_path() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .shortest_path("somesillypackage.a", "somesillypackage.e")
@@ -684,7 +684,7 @@ fn test_shortest_path() {
 #[test]
 fn test_path_exists() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert!(import_graph
         .path_exists("somesillypackage.a", "somesillypackage.e")
         .unwrap(),);
