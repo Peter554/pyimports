@@ -415,4 +415,91 @@ impl ImportGraph {
             reverse_imports,
         })
     }
+
+    pub fn squash_package(&self, package: &str) -> Result<ImportGraph> {
+        let package_to_squash = match self.packages_by_pypath.get(package) {
+            Some(package) => package,
+            None => {
+                return Err(Error::PackageNotFound(package.to_string()))?;
+            }
+        };
+        let binding = self
+            .child_modules(package)?
+            .into_iter()
+            .filter(|m| m.ends_with(".__init__"))
+            .collect::<Vec<_>>();
+        let init_module_pypath = binding.first().unwrap();
+        let init_module = self.modules_by_pypath.get(init_module_pypath).unwrap();
+
+        let packages_to_replace = self._descendant_packages(package)?;
+        let package_pypaths_to_replace = packages_to_replace
+            .iter()
+            .map(|p| p.pypath.clone())
+            .collect::<HashSet<_>>();
+        let modules_to_replace = {
+            let mut modules_to_replace = self._descendant_modules(package)?;
+            modules_to_replace.remove(init_module);
+            modules_to_replace
+        };
+        let module_pypaths_to_replace = modules_to_replace
+            .iter()
+            .map(|m| m.pypath.clone())
+            .collect::<HashSet<_>>();
+
+        let mut packages_by_pypath = self.packages_by_pypath.clone();
+        for pypath in packages_by_pypath.clone().keys() {
+            if package_pypaths_to_replace.contains(pypath) {
+                packages_by_pypath.remove(pypath);
+            }
+        }
+
+        let mut modules_by_pypath = self.modules_by_pypath.clone();
+        for pypath in modules_by_pypath.clone().keys() {
+            if module_pypaths_to_replace.contains(pypath) {
+                modules_by_pypath.remove(pypath);
+            }
+        }
+
+        let mut packages_by_module = self.packages_by_module.clone();
+        for (module, package) in packages_by_module.clone().iter() {
+            if modules_to_replace.contains(module) && packages_to_replace.contains(package) {
+                packages_by_module.remove(module);
+                packages_by_module.insert(Arc::clone(init_module), Arc::clone(package_to_squash));
+            } else if modules_to_replace.contains(module) {
+                packages_by_module.remove(module);
+                packages_by_module.insert(Arc::clone(init_module), Arc::clone(package));
+            } else if packages_to_replace.contains(package) {
+                packages_by_module.remove(module);
+                packages_by_module.insert(Arc::clone(module), Arc::clone(package_to_squash));
+            }
+        }
+
+        let mut imports = self.imports.clone();
+        for (module, imported_modules) in imports.clone().iter_mut() {
+            for imported_module in imported_modules.clone().iter() {
+                if modules_to_replace.contains(imported_module) {
+                    imported_modules.remove(imported_module);
+                    imported_modules.insert(Arc::clone(init_module));
+                }
+            }
+            imports.insert(Arc::clone(module), imported_modules.clone());
+            if modules_to_replace.contains(module) {
+                imports.remove(module);
+                imports
+                    .get_mut(&Arc::clone(init_module))
+                    .unwrap()
+                    .extend(imported_modules.clone());
+            }
+        }
+
+        let reverse_imports = indexing::reverse_imports(&imports)?;
+
+        Ok(ImportGraph {
+            packages_by_pypath,
+            modules_by_pypath,
+            packages_by_module,
+            imports,
+            reverse_imports,
+        })
+    }
 }

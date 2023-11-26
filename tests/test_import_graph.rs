@@ -1065,3 +1065,113 @@ fn test_subgraph() {
         .collect()
     );
 }
+
+#[test]
+fn test_squash_package() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    let squashed = import_graph
+        .squash_package("somesillypackage.child1")
+        .unwrap();
+    assert_eq!(
+        squashed.packages(),
+        hashset! {
+            "somesillypackage",
+            "somesillypackage.child1",
+            "somesillypackage.child2",
+            "somesillypackage.child3",
+            "somesillypackage.child4",
+            "somesillypackage.child5",
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    );
+    assert_eq!(
+        squashed.modules(),
+        hashset! {
+            "somesillypackage.__init__",
+            "somesillypackage.a",
+            "somesillypackage.b",
+            "somesillypackage.c",
+            "somesillypackage.d",
+            "somesillypackage.e",
+            "somesillypackage.z",
+            "somesillypackage.child1.__init__",
+            "somesillypackage.child2.__init__",
+            "somesillypackage.child3.__init__",
+            "somesillypackage.child4.__init__",
+            "somesillypackage.child5.__init__",
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    );
+    assert_eq!(
+        squashed.direct_imports(),
+        hashmap! {
+            "somesillypackage.__init__" => hashset!{
+                "somesillypackage.a",
+                "somesillypackage.b",
+                "somesillypackage.c",
+                "somesillypackage.d",
+                "somesillypackage.e",
+                "somesillypackage.child1.__init__",
+                "somesillypackage.child2.__init__",
+                "somesillypackage.child3.__init__",
+                "somesillypackage.child4.__init__",
+                "somesillypackage.child5.__init__",
+            },
+            "somesillypackage.a" => hashset!{
+                "somesillypackage.b",
+                "somesillypackage.c",
+            },
+            "somesillypackage.b" => hashset!{
+                "somesillypackage.c",
+            },
+            "somesillypackage.c" => hashset!{
+                "somesillypackage.d",
+                "somesillypackage.e",
+            },
+            "somesillypackage.d" => hashset!{
+                "somesillypackage.e"
+            },
+            "somesillypackage.e" => hashset!{},
+            "somesillypackage.z" => hashset! {
+                "somesillypackage.a",
+                "somesillypackage.b",
+                "somesillypackage.c",
+                "somesillypackage.d",
+                "somesillypackage.e",
+                "somesillypackage.child1.__init__",
+                "somesillypackage.child2.__init__",
+                "somesillypackage.child3.__init__",
+                "somesillypackage.child4.__init__",
+                "somesillypackage.child5.__init__",
+            },
+            "somesillypackage.child1.__init__" => hashset!{
+                "somesillypackage.a",
+                "somesillypackage.b",
+                "somesillypackage.c",
+                "somesillypackage.d",
+                "somesillypackage.e",
+                "somesillypackage.__init__",
+                "somesillypackage.child1.__init__",
+                "somesillypackage.child2.__init__",
+                "somesillypackage.child3.__init__",
+                "somesillypackage.child4.__init__",
+                "somesillypackage.child5.__init__",
+            },
+            "somesillypackage.child2.__init__" => hashset!{},
+            "somesillypackage.child3.__init__" => hashset!{},
+            "somesillypackage.child4.__init__" => hashset!{},
+            "somesillypackage.child5.__init__" => hashset!{},
+        }
+        .into_iter()
+        .map(|(k, v)| (
+            k.to_string(),
+            v.into_iter().map(|v| v.to_string()).collect()
+        ))
+        .collect()
+    );
+}
