@@ -6,7 +6,7 @@ use std::{fs, path::Path};
 
 use super::errors::Error;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Package {
     pub pypath: String,
     pub children: Vec<Arc<Package>>,

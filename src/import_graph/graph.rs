@@ -73,6 +73,32 @@ impl ImportGraph {
         Ok(modules)
     }
 
+    pub fn descendant_packages(&self, package: &str) -> Result<HashSet<String>> {
+        Ok(self
+            ._descendant_packages(package)?
+            .iter()
+            .map(|p| p.pypath.clone())
+            .collect())
+    }
+
+    fn _descendant_packages(&self, package: &str) -> Result<HashSet<Arc<Package>>> {
+        let package: &Package = match self.packages_by_pypath.get(package) {
+            Some(package) => package,
+            None => {
+                return Err(Error::PackageNotFound(package.to_string()))?;
+            }
+        };
+        let mut packages = HashSet::new();
+        let mut q = vec![package];
+        while let Some(package) = q.pop() {
+            for child in package.children.iter() {
+                packages.insert(Arc::clone(child));
+                q.push(child);
+            }
+        }
+        Ok(packages)
+    }
+
     pub fn descendant_modules(&self, package: &str) -> Result<HashSet<String>> {
         Ok(self
             ._descendant_modules(package)?
@@ -288,7 +314,7 @@ impl ImportGraph {
         shortest_path.map(|shortest_path| shortest_path.iter().map(|m| m.pypath.clone()).collect())
     }
 
-    pub fn without_imports<'a>(
+    pub fn ignore_imports<'a>(
         &self,
         imports_to_remove: impl IntoIterator<Item = (&'a str, &'a str)>,
     ) -> Result<ImportGraph> {
@@ -320,5 +346,73 @@ impl ImportGraph {
                 .remove(&to_module);
         }
         Ok(import_graph)
+    }
+
+    pub fn subgraph(&self, package: &str) -> Result<ImportGraph> {
+        let this_package = match self.packages_by_pypath.get(package) {
+            Some(package) => package,
+            None => {
+                return Err(Error::PackageNotFound(package.to_string()))?;
+            }
+        };
+
+        let packages_to_keep = {
+            let mut packages_to_keep = self._descendant_packages(package)?;
+            packages_to_keep.insert(Arc::clone(this_package));
+            packages_to_keep
+        };
+        let package_pypaths_to_keep = packages_to_keep
+            .iter()
+            .map(|p| p.pypath.clone())
+            .collect::<HashSet<_>>();
+        let modules_to_keep = self._descendant_modules(package)?;
+        let module_pypaths_to_keep = modules_to_keep
+            .iter()
+            .map(|m| m.pypath.clone())
+            .collect::<HashSet<_>>();
+
+        let mut packages_by_pypath = self.packages_by_pypath.clone();
+        for pypath in packages_by_pypath.clone().keys() {
+            if !package_pypaths_to_keep.contains(pypath) {
+                packages_by_pypath.remove(pypath);
+            }
+        }
+
+        let mut modules_by_pypath = self.modules_by_pypath.clone();
+        for pypath in modules_by_pypath.clone().keys() {
+            if !module_pypaths_to_keep.contains(pypath) {
+                modules_by_pypath.remove(pypath);
+            }
+        }
+
+        let mut packages_by_module = self.packages_by_module.clone();
+        for (module, package) in packages_by_module.clone().iter() {
+            if !modules_to_keep.contains(module) || !packages_to_keep.contains(package) {
+                packages_by_module.remove(module);
+            }
+        }
+
+        let mut imports = self.imports.clone();
+        for (module, imported_modules) in imports.clone().iter() {
+            if !modules_to_keep.contains(module) {
+                imports.remove(module);
+                continue;
+            }
+            for imported_module in imported_modules.clone().iter() {
+                if !modules_to_keep.contains(imported_module) {
+                    imports.get_mut(module).unwrap().remove(imported_module);
+                }
+            }
+        }
+
+        let reverse_imports = indexing::reverse_imports(&imports)?;
+
+        Ok(ImportGraph {
+            packages_by_pypath,
+            modules_by_pypath,
+            packages_by_module,
+            imports,
+            reverse_imports,
+        })
     }
 }

@@ -192,6 +192,33 @@ fn test_child_modules() {
 }
 
 #[test]
+fn test_descendant_packages() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert_eq!(
+        import_graph
+            .descendant_packages("somesillypackage")
+            .unwrap(),
+        hashset! {
+            "somesillypackage.child1",
+            "somesillypackage.child2",
+            "somesillypackage.child3",
+            "somesillypackage.child4",
+            "somesillypackage.child5",
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    );
+    assert_eq!(
+        import_graph
+            .descendant_packages("somesillypackage.child1")
+            .unwrap(),
+        hashset! {}
+    );
+}
+
+#[test]
 fn test_descendant_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
     let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
@@ -934,7 +961,7 @@ fn test_path_exists_packages() {
 }
 
 #[test]
-fn test_without_imports() {
+fn test_ignore_imports() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
 
     let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
@@ -951,7 +978,7 @@ fn test_without_imports() {
     );
 
     let import_graph = import_graph
-        .without_imports([("somesillypackage.a", "somesillypackage.c")])
+        .ignore_imports([("somesillypackage.a", "somesillypackage.c")])
         .unwrap();
     assert_eq!(
         import_graph
@@ -967,16 +994,74 @@ fn test_without_imports() {
     );
 
     let import_graph = import_graph
-        .without_imports([("somesillypackage.a", "somesillypackage.b")])
+        .ignore_imports([("somesillypackage.a", "somesillypackage.b")])
         .unwrap();
     assert!(import_graph
         .shortest_path("somesillypackage.a", "somesillypackage.e")
         .unwrap()
         .is_none());
 
-    let result = import_graph.without_imports([("somesillypackage.a", "somesillypackage.b")]);
+    let result = import_graph.ignore_imports([("somesillypackage.a", "somesillypackage.b")]);
     assert!(matches!(
         result.unwrap_err().downcast::<Error>().unwrap(),
         Error::ImportNotFound(_, _)
     ));
+}
+
+#[test]
+fn test_subgraph() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    let subgraph = import_graph.subgraph("somesillypackage.child1").unwrap();
+    assert_eq!(
+        subgraph.packages(),
+        hashset! {
+            "somesillypackage.child1".to_string(),
+        }
+    );
+    assert_eq!(
+        subgraph.modules(),
+        hashset! {
+            "somesillypackage.child1.__init__",
+            "somesillypackage.child1.a",
+            "somesillypackage.child1.b",
+            "somesillypackage.child1.c",
+            "somesillypackage.child1.d",
+            "somesillypackage.child1.e",
+            "somesillypackage.child1.z",
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    );
+    assert_eq!(
+        subgraph.direct_imports(),
+        hashmap! {
+            "somesillypackage.child1.__init__" => hashset!{
+                "somesillypackage.child1.a",
+                "somesillypackage.child1.b",
+                "somesillypackage.child1.c",
+                "somesillypackage.child1.d",
+                "somesillypackage.child1.e",
+            },
+            "somesillypackage.child1.a" => hashset!{},
+            "somesillypackage.child1.b" => hashset!{},
+            "somesillypackage.child1.c" => hashset!{},
+            "somesillypackage.child1.d" => hashset!{},
+            "somesillypackage.child1.e" => hashset!{},
+            "somesillypackage.child1.z" => hashset!{
+                "somesillypackage.child1.a",
+                "somesillypackage.child1.b",
+                "somesillypackage.child1.c",
+                "somesillypackage.child1.d",
+                "somesillypackage.child1.e",
+            },
+        }
+        .into_iter()
+        .map(|(k, v)| (
+            k.to_string(),
+            v.into_iter().map(|v| v.to_string()).collect()
+        ))
+        .collect()
+    );
 }
