@@ -1,3 +1,3 @@
 mod import_graph;
 
-pub use import_graph::{Error, ImportGraph};
+pub use import_graph::{builder::ImportGraphBuilder, errors::Error, graph::ImportGraph};

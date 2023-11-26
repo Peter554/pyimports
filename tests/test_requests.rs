@@ -1,12 +1,12 @@
 use maplit::hashset;
 use std::path::Path;
 
-use pyimports::ImportGraph;
+use pyimports::ImportGraphBuilder;
 
 #[test]
 fn test_modules_directly_imported_by() {
     let root_package_path = Path::new("./testpackages/requests");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_directly_imported_by("requests.__init__")
@@ -21,13 +21,16 @@ fn test_modules_directly_imported_by() {
             "requests.status_codes",
             "requests.utils",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     )
 }
 
 #[test]
 fn test_downstream_modules() {
     let root_package_path = Path::new("./testpackages/requests");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .downstream_modules("requests.__init__")
@@ -50,6 +53,9 @@ fn test_downstream_modules() {
             "requests.structures",
             "requests.utils",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph.downstream_modules("requests.utils").unwrap(),
@@ -62,19 +68,22 @@ fn test_downstream_modules() {
             "requests.exceptions",
             "requests.structures",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_shortest_path() {
     let root_package_path = Path::new("./testpackages/requests");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert!(
         // There are 3 equally short paths.
         hashset! {
-            vec!["requests.__init__", "requests.models", "requests.cookies",],
-            vec!["requests.__init__", "requests.sessions", "requests.cookies",],
-            vec!["requests.__init__", "requests.utils", "requests.cookies",],
+            vec!["requests.__init__", "requests.models", "requests.cookies",].into_iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            vec!["requests.__init__", "requests.sessions", "requests.cookies",].into_iter().map(|s| s.to_string()).collect(),
+            vec!["requests.__init__", "requests.utils", "requests.cookies",].into_iter().map(|s| s.to_string()).collect(),
         }
         .contains(
             &import_graph

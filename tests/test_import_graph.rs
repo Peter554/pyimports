@@ -1,12 +1,12 @@
 use maplit::hashset;
 use std::path::Path;
 
-use pyimports::ImportGraph;
+use pyimports::{Error, ImportGraphBuilder};
 
 #[test]
 fn test_packages() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.packages(),
         hashset! {
@@ -17,13 +17,16 @@ fn test_packages() {
             "somesillypackage.child4",
             "somesillypackage.child5",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.modules(),
         hashset! {
@@ -51,13 +54,16 @@ fn test_modules() {
             //
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_package_from_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .package_from_module("somesillypackage.__init__")
@@ -85,29 +91,28 @@ fn test_package_from_module() {
 }
 
 #[test]
-fn test_packages_from_modules() {
+fn test_child_packages() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
-        import_graph
-            .packages_from_modules(hashset! {
-                "somesillypackage.__init__",
-                "somesillypackage.a",
-                "somesillypackage.child1.__init__",
-                "somesillypackage.child1.a",
-            })
-            .unwrap(),
+        import_graph.child_packages("somesillypackage").unwrap(),
         hashset! {
-            "somesillypackage",
             "somesillypackage.child1",
+            "somesillypackage.child2",
+            "somesillypackage.child3",
+            "somesillypackage.child4",
+            "somesillypackage.child5",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_child_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.child_modules("somesillypackage").unwrap(),
         hashset! {
@@ -118,7 +123,10 @@ fn test_child_modules() {
             "somesillypackage.d",
             "somesillypackage.e",
             "somesillypackage.z",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -132,7 +140,10 @@ fn test_child_modules() {
             "somesillypackage.child1.d",
             "somesillypackage.child1.e",
             "somesillypackage.child1.z",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -140,7 +151,10 @@ fn test_child_modules() {
             .unwrap(),
         hashset! {
             "somesillypackage.child2.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -148,7 +162,10 @@ fn test_child_modules() {
             .unwrap(),
         hashset! {
             "somesillypackage.child3.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -156,7 +173,10 @@ fn test_child_modules() {
             .unwrap(),
         hashset! {
             "somesillypackage.child4.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -164,14 +184,17 @@ fn test_child_modules() {
             .unwrap(),
         hashset! {
             "somesillypackage.child5.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_descendant_modules() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.descendant_modules("somesillypackage").unwrap(),
         hashset! {
@@ -198,7 +221,10 @@ fn test_descendant_modules() {
             "somesillypackage.child4.__init__",
             //
             "somesillypackage.child5.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -212,7 +238,10 @@ fn test_descendant_modules() {
             "somesillypackage.child1.d",
             "somesillypackage.child1.e",
             "somesillypackage.child1.z",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -220,7 +249,10 @@ fn test_descendant_modules() {
             .unwrap(),
         hashset! {
             "somesillypackage.child2.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -228,7 +260,10 @@ fn test_descendant_modules() {
             .unwrap(),
         hashset! {
             "somesillypackage.child3.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -236,7 +271,10 @@ fn test_descendant_modules() {
             .unwrap(),
         hashset! {
             "somesillypackage.child4.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -244,14 +282,17 @@ fn test_descendant_modules() {
             .unwrap(),
         hashset! {
             "somesillypackage.child5.__init__",
-        },
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_modules_directly_imported_by_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_directly_imported_by("somesillypackage.__init__")
@@ -273,6 +314,9 @@ fn test_modules_directly_imported_by_module() {
             "somesillypackage.child4.__init__",
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -295,6 +339,9 @@ fn test_modules_directly_imported_by_module() {
             "somesillypackage.child4.__init__",
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -317,6 +364,9 @@ fn test_modules_directly_imported_by_module() {
             "somesillypackage.child4.__init__",
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -339,13 +389,16 @@ fn test_modules_directly_imported_by_module() {
             "somesillypackage.child4.__init__",
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_modules_directly_imported_by_package() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_directly_imported_by("somesillypackage")
@@ -368,6 +421,9 @@ fn test_modules_directly_imported_by_package() {
             "somesillypackage.child4.__init__",
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -390,13 +446,16 @@ fn test_modules_directly_imported_by_package() {
             "somesillypackage.child4.__init__",
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_modules_that_directly_import_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_that_directly_import("somesillypackage.__init__")
@@ -405,6 +464,9 @@ fn test_modules_that_directly_import_module() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -416,6 +478,9 @@ fn test_modules_that_directly_import_module() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -425,6 +490,9 @@ fn test_modules_that_directly_import_module() {
             "somesillypackage.__init__",
             "somesillypackage.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -436,6 +504,9 @@ fn test_modules_that_directly_import_module() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -447,13 +518,16 @@ fn test_modules_that_directly_import_module() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_modules_that_directly_import_package() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .modules_that_directly_import("somesillypackage")
@@ -468,6 +542,9 @@ fn test_modules_that_directly_import_package() {
             "somesillypackage.c",
             "somesillypackage.d",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -479,6 +556,9 @@ fn test_modules_that_directly_import_package() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -490,13 +570,16 @@ fn test_modules_that_directly_import_package() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_downstream_modules_of_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .downstream_modules("somesillypackage.a")
@@ -507,6 +590,9 @@ fn test_downstream_modules_of_module() {
             "somesillypackage.d",
             "somesillypackage.e",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -516,6 +602,9 @@ fn test_downstream_modules_of_module() {
             "somesillypackage.d",
             "somesillypackage.e",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -528,7 +617,7 @@ fn test_downstream_modules_of_module() {
 #[test]
 fn test_downstream_modules_of_package() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.downstream_modules("somesillypackage").unwrap(),
         hashset! {
@@ -549,6 +638,9 @@ fn test_downstream_modules_of_package() {
             "somesillypackage.child4.__init__",
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -572,6 +664,9 @@ fn test_downstream_modules_of_package() {
             "somesillypackage.child4.__init__",
             "somesillypackage.child5.__init__",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -584,7 +679,7 @@ fn test_downstream_modules_of_package() {
 #[test]
 fn test_upstream_modules_of_module() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.upstream_modules("somesillypackage.a").unwrap(),
         hashset! {
@@ -593,6 +688,9 @@ fn test_upstream_modules_of_module() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph.upstream_modules("somesillypackage.c").unwrap(),
@@ -604,6 +702,9 @@ fn test_upstream_modules_of_module() {
             "somesillypackage.a",
             "somesillypackage.b",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph.upstream_modules("somesillypackage.e").unwrap(),
@@ -617,13 +718,16 @@ fn test_upstream_modules_of_module() {
             "somesillypackage.c",
             "somesillypackage.d",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_upstream_modules_of_package() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph.upstream_modules("somesillypackage").unwrap(),
         hashset! {
@@ -636,6 +740,9 @@ fn test_upstream_modules_of_package() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -647,6 +754,9 @@ fn test_upstream_modules_of_package() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
     assert_eq!(
         import_graph
@@ -658,13 +768,16 @@ fn test_upstream_modules_of_package() {
             "somesillypackage.child1.__init__",
             "somesillypackage.child1.z",
         }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     );
 }
 
 #[test]
 fn test_shortest_path() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert_eq!(
         import_graph
             .shortest_path("somesillypackage.a", "somesillypackage.e")
@@ -684,11 +797,71 @@ fn test_shortest_path() {
 #[test]
 fn test_path_exists() {
     let root_package_path = Path::new("./testpackages/somesillypackage");
-    let import_graph = ImportGraph::build(root_package_path).unwrap();
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
     assert!(import_graph
         .path_exists("somesillypackage.a", "somesillypackage.e")
         .unwrap(),);
     assert!(!import_graph
         .path_exists("somesillypackage.e", "somesillypackage.a")
         .unwrap(),);
+}
+
+#[test]
+fn test_path_exists_packages() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert!(import_graph
+        .path_exists("somesillypackage.child1", "somesillypackage.child2")
+        .unwrap(),);
+    assert!(!import_graph
+        .path_exists("somesillypackage.child2", "somesillypackage.child1")
+        .unwrap(),);
+}
+
+#[test]
+fn test_without_imports() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert_eq!(
+        import_graph
+            .shortest_path("somesillypackage.a", "somesillypackage.e")
+            .unwrap()
+            .unwrap(),
+        vec![
+            "somesillypackage.a",
+            "somesillypackage.c",
+            "somesillypackage.e"
+        ],
+    );
+
+    let import_graph = import_graph
+        .without_imports([("somesillypackage.a", "somesillypackage.c")])
+        .unwrap();
+    assert_eq!(
+        import_graph
+            .shortest_path("somesillypackage.a", "somesillypackage.e")
+            .unwrap()
+            .unwrap(),
+        vec![
+            "somesillypackage.a",
+            "somesillypackage.b",
+            "somesillypackage.c",
+            "somesillypackage.e"
+        ],
+    );
+
+    let import_graph = import_graph
+        .without_imports([("somesillypackage.a", "somesillypackage.b")])
+        .unwrap();
+    assert!(import_graph
+        .shortest_path("somesillypackage.a", "somesillypackage.e")
+        .unwrap()
+        .is_none());
+
+    let result = import_graph.without_imports([("somesillypackage.a", "somesillypackage.b")]);
+    assert!(matches!(
+        result.unwrap_err().downcast::<Error>().unwrap(),
+        Error::ImportNotFound(_, _)
+    ));
 }

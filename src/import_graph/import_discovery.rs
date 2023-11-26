@@ -4,35 +4,39 @@ use rustpython_parser::{
     self,
     ast::{Mod, Stmt},
 };
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::{collections::HashMap, sync::Arc};
 
 use super::ast_visit;
 use super::indexing;
 use super::package_discovery::{Module, Package};
 
-pub type Imports<'a> = HashMap<&'a Module, HashSet<&'a Module>>;
+pub type Imports = HashMap<Arc<Module>, HashSet<Arc<Module>>>;
 
-pub fn discover_imports<'a>(
-    root_package: &'a Package,
-    modules_by_pypath: &'a indexing::ModulesByPypath,
-) -> Result<Imports<'a>> {
+pub fn discover_imports(
+    root_package: Arc<Package>,
+    modules_by_pypath: &indexing::ModulesByPypath,
+) -> Result<Imports> {
     modules_by_pypath
         .values()
         .par_bridge()
         .map(|module| {
-            let imports = get_imports_for_module(root_package, module, modules_by_pypath)?;
-            Ok((module as &Module, imports))
+            let imports = get_imports_for_module(
+                Arc::clone(&root_package),
+                Arc::clone(module),
+                modules_by_pypath,
+            )?;
+            Ok((Arc::clone(module), imports))
         })
         .collect::<Result<Imports>>()
 }
 
-fn get_imports_for_module<'a>(
-    root_package: &'a Package,
-    module: &'a Module,
-    modules_by_pypath: &'a indexing::ModulesByPypath,
-) -> Result<HashSet<&'a Module>> {
+fn get_imports_for_module(
+    root_package: Arc<Package>,
+    module: Arc<Module>,
+    modules_by_pypath: &indexing::ModulesByPypath,
+) -> Result<HashSet<Arc<Module>>> {
     let code = fs::read_to_string(&module.path)?;
     let ast = rustpython_parser::parse(
         &code,
@@ -59,13 +63,13 @@ fn get_imports_for_module<'a>(
 }
 
 struct ImportVisitor<'a> {
-    root_package: &'a Package,
-    module: &'a Module,
-    modules_by_pypath: &'a indexing::ModulesByPypath<'a>,
-    imports: HashSet<&'a Module>,
+    root_package: Arc<Package>,
+    module: Arc<Module>,
+    modules_by_pypath: &'a indexing::ModulesByPypath,
+    imports: HashSet<Arc<Module>>,
 }
 
-impl<'a> ast_visit::StatementVisitor for ImportVisitor<'a> {
+impl ast_visit::StatementVisitor for ImportVisitor<'_> {
     fn visit(&mut self, stmt: &Stmt) -> bool {
         match stmt {
             Stmt::Import(stmt) => {
@@ -84,7 +88,7 @@ impl<'a> ast_visit::StatementVisitor for ImportVisitor<'a> {
                     for pypath in [name.name.to_string(), format!("{}.__init__", name.name)] {
                         match self.modules_by_pypath.get(pypath.as_str()) {
                             Some(imported_module) => {
-                                self.imports.insert(imported_module);
+                                self.imports.insert(Arc::clone(imported_module));
                                 found_module = true;
                                 break;
                             }
@@ -150,7 +154,7 @@ impl<'a> ast_visit::StatementVisitor for ImportVisitor<'a> {
                     ] {
                         match self.modules_by_pypath.get(pypath.as_str()) {
                             Some(imported_module) => {
-                                self.imports.insert(imported_module);
+                                self.imports.insert(Arc::clone(imported_module));
                                 found_module = true;
                                 break;
                             }
