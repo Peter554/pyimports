@@ -1,4 +1,4 @@
-use maplit::hashset;
+use maplit::{hashmap, hashset};
 use std::path::Path;
 
 use pyimports::{Error, ImportGraphBuilder};
@@ -287,6 +287,121 @@ fn test_descendant_modules() {
         .map(|s| s.to_string())
         .collect()
     );
+}
+
+#[test]
+fn test_direct_imports() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert_eq!(
+        import_graph.direct_imports(),
+        hashmap! {
+            "somesillypackage.__init__" => hashset!{
+                "somesillypackage.a",
+                "somesillypackage.child1.a",
+                "somesillypackage.b",
+                "somesillypackage.child1.b",
+                "somesillypackage.c",
+                "somesillypackage.child1.c",
+                "somesillypackage.d",
+                "somesillypackage.child1.d",
+                "somesillypackage.e",
+                "somesillypackage.child1.e",
+                "somesillypackage.child1.__init__",
+                "somesillypackage.child2.__init__",
+                "somesillypackage.child3.__init__",
+                "somesillypackage.child4.__init__",
+                "somesillypackage.child5.__init__",
+            },
+            "somesillypackage.a" => hashset!{
+                "somesillypackage.b",
+                "somesillypackage.c",
+            },
+            "somesillypackage.b" => hashset!{
+                "somesillypackage.c",
+            },
+            "somesillypackage.c" => hashset!{
+                "somesillypackage.d",
+                "somesillypackage.e",
+            },
+            "somesillypackage.d" => hashset!{
+                "somesillypackage.e"
+            },
+            "somesillypackage.e" => hashset!{},
+            "somesillypackage.z" => hashset! {
+                "somesillypackage.a",
+                "somesillypackage.child1.a",
+                "somesillypackage.b",
+                "somesillypackage.child1.b",
+                "somesillypackage.c",
+                "somesillypackage.child1.c",
+                "somesillypackage.d",
+                "somesillypackage.child1.d",
+                "somesillypackage.e",
+                "somesillypackage.child1.e",
+                "somesillypackage.child1.__init__",
+                "somesillypackage.child2.__init__",
+                "somesillypackage.child3.__init__",
+                "somesillypackage.child4.__init__",
+                "somesillypackage.child5.__init__",
+            },
+            "somesillypackage.child1.__init__" => hashset!{
+                "somesillypackage.a",
+                "somesillypackage.child1.a",
+                "somesillypackage.b",
+                "somesillypackage.child1.b",
+                "somesillypackage.c",
+                "somesillypackage.child1.c",
+                "somesillypackage.d",
+                "somesillypackage.child1.d",
+                "somesillypackage.e",
+                "somesillypackage.child1.e",
+                "somesillypackage.__init__",
+                "somesillypackage.child2.__init__",
+                "somesillypackage.child3.__init__",
+                "somesillypackage.child4.__init__",
+                "somesillypackage.child5.__init__",
+            },
+            "somesillypackage.child1.a" => hashset!{},
+            "somesillypackage.child1.b" => hashset!{},
+            "somesillypackage.child1.c" => hashset!{},
+            "somesillypackage.child1.d" => hashset!{},
+            "somesillypackage.child1.e" => hashset!{},
+            "somesillypackage.child1.z" => hashset!{
+                "somesillypackage.a",
+                "somesillypackage.child1.a",
+                "somesillypackage.b",
+                "somesillypackage.child1.b",
+                "somesillypackage.c",
+                "somesillypackage.child1.c",
+                "somesillypackage.d",
+                "somesillypackage.child1.d",
+                "somesillypackage.e",
+                "somesillypackage.child1.e",
+                "somesillypackage.__init__",
+                "somesillypackage.child2.__init__",
+                "somesillypackage.child3.__init__",
+                "somesillypackage.child4.__init__",
+                "somesillypackage.child5.__init__",
+            },
+            "somesillypackage.child2.__init__" => hashset!{},
+            "somesillypackage.child3.__init__" => hashset!{},
+            "somesillypackage.child4.__init__" => hashset!{},
+            "somesillypackage.child5.__init__" => hashset!{},
+        }
+        .into_iter()
+        .map(|(k, v)| (
+            k.to_string(),
+            v.into_iter().map(|v| v.to_string()).collect()
+        ))
+        .collect()
+    );
+
+    assert_eq!(import_graph.direct_imports_flat().len(), 66);
+    assert!(import_graph.direct_imports_flat().contains(&(
+        "somesillypackage.child1.z".to_string(),
+        "somesillypackage.child1.e".to_string()
+    )));
 }
 
 #[test]

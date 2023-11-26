@@ -1,5 +1,6 @@
 use anyhow::Result;
 use pathfinding::prelude::{bfs, bfs_reach};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -98,6 +99,33 @@ impl ImportGraph {
             }
         }
         Ok(modules)
+    }
+
+    pub fn direct_imports(&self) -> HashMap<String, HashSet<String>> {
+        self.imports
+            .iter()
+            .map(|(module, imported_modules)| {
+                (
+                    module.pypath.clone(),
+                    imported_modules
+                        .iter()
+                        .map(|imported_module| imported_module.pypath.clone())
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    pub fn direct_imports_flat(&self) -> HashSet<(String, String)> {
+        self.direct_imports()
+            .into_iter()
+            .flat_map(|(module, imported_modules)| {
+                imported_modules
+                    .into_iter()
+                    .map(|imported_module| (module.clone(), imported_module))
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 
     pub fn modules_directly_imported_by(&self, module_or_package: &str) -> Result<HashSet<String>> {
