@@ -2,15 +2,16 @@ use anyhow::Result;
 use rayon::prelude::*;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::SystemTime;
 use std::{fs, path::Path};
 
 use super::errors::Error;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Package {
-    pub pypath: Arc<String>,
-    pub children: Vec<Arc<Package>>,
-    pub modules: Vec<Arc<Module>>,
+pub(super) struct Package {
+    pub(super) pypath: Arc<String>,
+    pub(super) children: Vec<Arc<Package>>,
+    pub(super) modules: Vec<Arc<Module>>,
 }
 
 impl Package {
@@ -32,21 +33,27 @@ impl Package {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Module {
-    pub pypath: Arc<String>,
+pub(super) struct Module {
+    pub(super) pypath: Arc<String>,
     pub(super) path: Arc<PathBuf>,
+    pub(super) mtime: u64,
 }
 
 impl Module {
-    fn new(pypath: String, path: PathBuf) -> Self {
+    fn new(pypath: String, path: PathBuf, mtime: SystemTime) -> Self {
+        let mtime = mtime
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         Module {
             pypath: Arc::new(pypath),
             path: Arc::new(path),
+            mtime,
         }
     }
 }
 
-pub fn discover_package(root_package_path: &Path) -> Result<Arc<Package>> {
+pub(super) fn discover_package(root_package_path: &Path) -> Result<Arc<Package>> {
     _discover_package(root_package_path, root_package_path)
 }
 
@@ -93,7 +100,11 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Ar
         .filter(|file| file.path().extension().unwrap_or_default() == "py")
         .map(|file| {
             let pypath = get_pypath(root_package_path, &file.path(), true)?;
-            Ok(Module::new(pypath, file.path().to_path_buf()))
+            Ok(Module::new(
+                pypath,
+                file.path().to_path_buf(),
+                file.metadata()?.modified()?,
+            ))
         })
         .collect::<Result<Vec<_>>>()?
     {

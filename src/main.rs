@@ -8,14 +8,16 @@ fn main() -> Result<()> {
     let root_package_path = Path::new(&args[1]);
 
     let import_graph = {
-        let mut import_graph = ImportGraphBuilder::new(root_package_path).build()?;
+        let mut import_graph = ImportGraphBuilder::new(root_package_path)
+            .use_cache()
+            .build()?;
         if args.len() == 2 {
             import_graph
         } else {
             import_graph = import_graph.subgraph(&args[2])?;
-            for child_package in import_graph.child_packages(&args[2])? {
-                import_graph = import_graph.squash_package(&child_package)?;
-            }
+            // for child_package in import_graph.child_packages(&args[2])? {
+            //     import_graph = import_graph.squash_package(&child_package)?;
+            // }
             import_graph
         }
     };

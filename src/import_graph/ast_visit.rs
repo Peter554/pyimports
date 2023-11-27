@@ -1,11 +1,11 @@
 use anyhow::Result;
 use rustpython_parser::ast::{ExceptHandler, ModModule, Stmt};
 
-pub trait StatementVisitor {
+pub(super) trait StatementVisitor {
     fn visit(&mut self, stmt: &Stmt) -> bool;
 }
 
-pub fn visit_statements<T>(ast: &ModModule, visitor: &mut T) -> Result<()>
+pub(super) fn visit_statements<T>(ast: &ModModule, visitor: &mut T) -> Result<()>
 where
     T: StatementVisitor,
 {

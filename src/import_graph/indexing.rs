@@ -9,11 +9,11 @@ use super::{
     package_discovery::{Module, Package},
 };
 
-pub type PackagesByPypath = HashMap<Arc<String>, Arc<Package>>;
-pub type ModulesByPypath = HashMap<Arc<String>, Arc<Module>>;
-pub type PackagesByModule = HashMap<Arc<Module>, Arc<Package>>;
+pub(super) type PackagesByPypath = HashMap<Arc<String>, Arc<Package>>;
+pub(super) type ModulesByPypath = HashMap<Arc<String>, Arc<Module>>;
+pub(super) type PackagesByModule = HashMap<Arc<Module>, Arc<Package>>;
 
-pub fn get_packages_by_pypath(root_package: Arc<Package>) -> Result<PackagesByPypath> {
+pub(super) fn get_packages_by_pypath(root_package: Arc<Package>) -> Result<PackagesByPypath> {
     let mut m = HashMap::new();
     let mut q = vec![root_package];
     while let Some(package) = q.pop() {
@@ -25,7 +25,7 @@ pub fn get_packages_by_pypath(root_package: Arc<Package>) -> Result<PackagesByPy
     Ok(m)
 }
 
-pub fn get_modules_by_pypath(root_package: Arc<Package>) -> Result<ModulesByPypath> {
+pub(super) fn get_modules_by_pypath(root_package: Arc<Package>) -> Result<ModulesByPypath> {
     let mut m = HashMap::new();
     let mut q = vec![root_package];
     while let Some(package) = q.pop() {
@@ -39,7 +39,7 @@ pub fn get_modules_by_pypath(root_package: Arc<Package>) -> Result<ModulesByPypa
     Ok(m)
 }
 
-pub fn get_packages_by_module(root_package: Arc<Package>) -> Result<PackagesByModule> {
+pub(super) fn get_packages_by_module(root_package: Arc<Package>) -> Result<PackagesByModule> {
     let mut m = HashMap::new();
     let mut q = vec![root_package];
     while let Some(package) = q.pop() {
@@ -53,7 +53,7 @@ pub fn get_packages_by_module(root_package: Arc<Package>) -> Result<PackagesByMo
     Ok(m)
 }
 
-pub fn reverse_imports(imports: &Imports) -> Result<Imports> {
+pub(super) fn reverse_imports(imports: &Imports) -> Result<Imports> {
     let mut hm = HashMap::new();
     for (module, imports) in imports.iter() {
         hm.entry(Arc::clone(module)).or_insert(HashSet::new());
