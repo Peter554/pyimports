@@ -8,28 +8,40 @@ use std::collections::HashSet;
 use std::fs;
 use std::{collections::HashMap, sync::Arc};
 
-use super::ast_visit;
 use super::indexing;
 use super::package_discovery::{Module, Package};
+use super::{ast_visit, cache::ImportsCache};
 
-pub type Imports = HashMap<Arc<Module>, HashSet<Arc<Module>>>;
+pub(super) type Imports = HashMap<Arc<Module>, HashSet<Arc<Module>>>;
 
-pub fn discover_imports(
+pub(super) fn discover_imports<T>(
     root_package: Arc<Package>,
     modules_by_pypath: &indexing::ModulesByPypath,
-) -> Result<Imports> {
-    modules_by_pypath
+    cache: &mut T,
+) -> Result<Imports>
+where
+    T: ImportsCache + Send + Sync + ?Sized,
+{
+    let imports = modules_by_pypath
         .values()
         .par_bridge()
         .map(|module| {
-            let imports = get_imports_for_module(
-                Arc::clone(&root_package),
-                Arc::clone(module),
-                modules_by_pypath,
-            )?;
+            let imports = match cache.get_imports(module) {
+                Some(imports) => imports,
+                None => get_imports_for_module(
+                    Arc::clone(&root_package),
+                    Arc::clone(module),
+                    modules_by_pypath,
+                )?,
+            };
             Ok((Arc::clone(module), imports))
         })
-        .collect::<Result<Imports>>()
+        .collect::<Result<Imports>>()?;
+    for (module, imported_modules) in imports.iter() {
+        cache.set_imports(module, imported_modules);
+    }
+    cache.persist()?;
+    Ok(imports)
 }
 
 fn get_imports_for_module(
