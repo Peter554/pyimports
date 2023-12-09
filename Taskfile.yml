@@ -5,7 +5,7 @@ tasks:
     cmds:
       - cargo test
 
-  clippy:
+  clippy.check:
     cmds:
       - cargo clippy --all-targets -- -D warnings
 
@@ -13,17 +13,16 @@ tasks:
     cmds:
       - cargo clippy --fix --allow-staged
 
-  fmt:
-    cmds:
-      - cargo fmt
-
   fmt.check:
     cmds:
       - cargo fmt --check
 
+  fmt.fix:
+    cmds:
+      - cargo fmt
 
   check:
     cmds:
       - task: test
-      - task: clippy
+      - task: clippy.check
       - task: fmt.check
