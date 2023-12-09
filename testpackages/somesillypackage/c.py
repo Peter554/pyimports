@@ -1,4 +1,8 @@
+from typing import TYPE_CHECKING
+
 import somesillypackage.d
-import somesillypackage.e
+
+if TYPE_CHECKING:
+    import somesillypackage.e
 
 C = "C"

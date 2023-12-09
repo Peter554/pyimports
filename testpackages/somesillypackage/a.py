@@ -1,4 +1,8 @@
+import typing
+
 from . import b
-from somesillypackage import c
+
+if typing.TYPE_CHECKING:
+    from somesillypackage import c
 
 A = "A"
