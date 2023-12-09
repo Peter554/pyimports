@@ -10,14 +10,16 @@ use super::errors::Error;
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct Package {
     pub(super) pypath: Arc<String>,
+    pub(super) path: Arc<PathBuf>,
     pub(super) children: Vec<Arc<Package>>,
     pub(super) modules: Vec<Arc<Module>>,
 }
 
 impl Package {
-    fn new(pypath: String) -> Self {
+    fn new(pypath: String, path: PathBuf) -> Self {
         Package {
             pypath: Arc::new(pypath),
+            path: Arc::new(path),
             children: vec![],
             modules: vec![],
         }
@@ -93,7 +95,7 @@ fn _discover_package(root_package_path: &Path, package_path: &Path) -> Result<Ar
     }
 
     let pypath = get_pypath(root_package_path, package_path, false)?;
-    let mut package = Package::new(pypath);
+    let mut package = Package::new(pypath, package_path.to_path_buf());
 
     for module in files
         .par_iter()

@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fs::{self, create_dir_all},
     path::{Path, PathBuf},
     sync::Arc,
     time::SystemTime,
@@ -21,6 +21,7 @@ pub(super) trait ImportsCache {
 pub(super) struct FileCache {
     modules_by_pypath: ModulesByPypath,
     pypaths_by_module: HashMap<Arc<Module>, Arc<String>>,
+    file_dir: PathBuf,
     file_path: PathBuf,
     file_data: FileData,
 }
@@ -40,13 +41,18 @@ impl FileCache {
     pub(super) fn open(
         root_package_path: &Path,
         modules_by_pypath: &ModulesByPypath,
+        exclude_type_checking_imports: bool,
     ) -> Result<Self> {
         let pypaths_by_module = modules_by_pypath
             .iter()
             .map(|(k, v)| (Arc::clone(v), Arc::clone(k)))
             .collect();
 
-        let file_path = root_package_path.join(".pyimports_cache");
+        let file_dir = root_package_path.join(".pyimports_cache");
+        let file_path = file_dir.join(format!(
+            "exclude_type_checking_imports={}",
+            exclude_type_checking_imports
+        ));
         let file_data: FileData = if file_path.exists() {
             let file_contents = fs::read_to_string(&file_path)?;
             serde_json::from_str(&file_contents)?
@@ -59,6 +65,7 @@ impl FileCache {
         Ok(FileCache {
             modules_by_pypath: modules_by_pypath.clone(),
             pypaths_by_module,
+            file_dir,
             file_path,
             file_data,
         })
@@ -99,6 +106,7 @@ impl ImportsCache for FileCache {
     }
 
     fn persist(&self) -> Result<()> {
+        create_dir_all(&self.file_dir)?;
         let s = serde_json::to_string(&self.file_data)?;
         fs::write(&self.file_path, s)?;
         Ok(())

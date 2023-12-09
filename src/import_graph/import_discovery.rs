@@ -8,20 +8,29 @@ use std::collections::HashSet;
 use std::fs;
 use std::{collections::HashMap, sync::Arc};
 
+use super::ast_visit;
+use super::cache::{FileCache, ImportsCache, NullCache};
 use super::indexing;
 use super::package_discovery::{Module, Package};
-use super::{ast_visit, cache::ImportsCache};
 
 pub(super) type Imports = HashMap<Arc<Module>, HashSet<Arc<Module>>>;
 
-pub(super) fn discover_imports<T>(
+pub(super) fn discover_imports(
     root_package: Arc<Package>,
     modules_by_pypath: &indexing::ModulesByPypath,
-    cache: &mut T,
-) -> Result<Imports>
-where
-    T: ImportsCache + Sync + ?Sized,
-{
+    exclude_type_checking_imports: bool,
+    use_cache: bool,
+) -> Result<Imports> {
+    let mut cache: Box<dyn ImportsCache + Sync> = if use_cache {
+        Box::new(FileCache::open(
+            root_package.path.as_path(),
+            modules_by_pypath,
+            exclude_type_checking_imports,
+        )?)
+    } else {
+        Box::new(NullCache)
+    };
+
     let imports = modules_by_pypath
         .values()
         .par_bridge()
@@ -32,6 +41,7 @@ where
                     Arc::clone(&root_package),
                     Arc::clone(module),
                     modules_by_pypath,
+                    exclude_type_checking_imports,
                 )?,
             };
             Ok((Arc::clone(module), imports))
@@ -48,6 +58,7 @@ fn get_imports_for_module(
     root_package: Arc<Package>,
     module: Arc<Module>,
     modules_by_pypath: &indexing::ModulesByPypath,
+    exclude_type_checking_imports: bool,
 ) -> Result<HashSet<Arc<Module>>> {
     let code = fs::read_to_string(module.path.as_ref())?;
     let ast = rustpython_parser::parse(
@@ -67,6 +78,7 @@ fn get_imports_for_module(
         root_package,
         module,
         modules_by_pypath,
+        exclude_type_checking_imports,
         imports: HashSet::new(),
     };
     ast_visit::visit_statements(&ast, &mut visitor)?;
@@ -78,11 +90,12 @@ struct ImportVisitor<'a> {
     root_package: Arc<Package>,
     module: Arc<Module>,
     modules_by_pypath: &'a indexing::ModulesByPypath,
+    exclude_type_checking_imports: bool,
     imports: HashSet<Arc<Module>>,
 }
 
 impl ast_visit::StatementVisitor for ImportVisitor<'_> {
-    fn visit(&mut self, stmt: &Stmt) -> bool {
+    fn visit(&mut self, stmt: &Stmt) -> ast_visit::VisitChildren {
         match stmt {
             Stmt::Import(stmt) => {
                 for name in stmt.names.iter() {
@@ -111,7 +124,7 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                         panic!("Failed to find internal import {}", name.name)
                     }
                 }
-                false
+                ast_visit::VisitChildren::None
             }
             Stmt::ImportFrom(stmt) => {
                 let level_pypath_prefix = match stmt.level {
@@ -153,7 +166,7 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                         .starts_with((self.root_package.pypath.to_string() + ".").as_str()))
                 {
                     // An external import.
-                    return false;
+                    return ast_visit::VisitChildren::None;
                 }
 
                 for name in stmt.names.iter() {
@@ -177,9 +190,27 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                         panic!("Failed to find internal import {}", name.name)
                     }
                 }
-                false
+                ast_visit::VisitChildren::None
             }
-            _ => true,
+            Stmt::If(stmt) => {
+                if stmt.test.is_attribute_expr() {
+                    let expression = stmt.test.clone().expect_attribute_expr();
+                    if self.exclude_type_checking_imports
+                        && expression.attr.as_str() == "TYPE_CHECKING"
+                    {
+                        return ast_visit::VisitChildren::Some(stmt.orelse.clone());
+                    }
+                } else if stmt.test.is_name_expr() {
+                    let expression = stmt.test.clone().expect_name_expr();
+                    if self.exclude_type_checking_imports
+                        && expression.id.as_str() == "TYPE_CHECKING"
+                    {
+                        return ast_visit::VisitChildren::Some(stmt.orelse.clone());
+                    }
+                }
+                ast_visit::VisitChildren::All
+            }
+            _ => ast_visit::VisitChildren::All,
         }
     }
 }

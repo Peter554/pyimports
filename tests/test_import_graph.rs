@@ -1187,3 +1187,66 @@ fn test_squash_package() {
         .collect()
     );
 }
+
+#[test]
+fn test_exclude_type_checking_imports() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert_eq!(
+        import_graph
+            .modules_directly_imported_by("somesillypackage.a")
+            .unwrap(),
+        hashset! {
+            "somesillypackage.b",
+            "somesillypackage.c",
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    );
+    let import_graph = ImportGraphBuilder::new(root_package_path)
+        .exclude_type_checking_imports()
+        .build()
+        .unwrap();
+    assert_eq!(
+        import_graph
+            .modules_directly_imported_by("somesillypackage.a")
+            .unwrap(),
+        hashset! {
+            "somesillypackage.b",
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    );
+
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert_eq!(
+        import_graph
+            .modules_directly_imported_by("somesillypackage.c")
+            .unwrap(),
+        hashset! {
+            "somesillypackage.d",
+            "somesillypackage.e",
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    );
+    let import_graph = ImportGraphBuilder::new(root_package_path)
+        .exclude_type_checking_imports()
+        .build()
+        .unwrap();
+    assert_eq!(
+        import_graph
+            .modules_directly_imported_by("somesillypackage.c")
+            .unwrap(),
+        hashset! {
+            "somesillypackage.d",
+        }
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    );
+}
