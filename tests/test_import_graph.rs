@@ -1263,13 +1263,21 @@ fn test_import_metadata() {
             )
             .unwrap()
             .unwrap(),
-        ImportMetadata { line_number: 23 }
+        ImportMetadata {
+            from_module: "somesillypackage.__init__".to_string(),
+            to_module: "somesillypackage.child3.__init__".to_string(),
+            line_number: 23
+        }
     );
     assert_eq!(
         import_graph
             .import_metadata("somesillypackage.d", "somesillypackage.e")
             .unwrap()
             .unwrap(),
-        ImportMetadata { line_number: 5 }
+        ImportMetadata {
+            from_module: "somesillypackage.d".to_string(),
+            to_module: "somesillypackage.e".to_string(),
+            line_number: 5
+        }
     );
 }

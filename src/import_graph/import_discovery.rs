@@ -5,7 +5,6 @@ use rustpython_parser::{
     ast::{Mod, Stmt},
     source_code::LinearLocator,
 };
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::{collections::HashMap, sync::Arc};
@@ -17,8 +16,10 @@ use super::package_discovery::{Module, Package};
 
 pub(super) type Imports = HashMap<Arc<Module>, HashSet<Arc<Module>>>;
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ImportMetadata {
+    pub from_module: String,
+    pub to_module: String,
     pub line_number: u32,
 }
 
@@ -148,6 +149,8 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                                 self.imports.push((
                                     Arc::clone(imported_module),
                                     ImportMetadata {
+                                        from_module: self.module.pypath.to_string(),
+                                        to_module: imported_module.pypath.to_string(),
                                         line_number: location.row.to_usize() as u32,
                                     },
                                 ));
@@ -221,6 +224,8 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                                 self.imports.push((
                                     Arc::clone(imported_module),
                                     ImportMetadata {
+                                        from_module: self.module.pypath.to_string(),
+                                        to_module: imported_module.pypath.to_string(),
                                         line_number: location.row.to_usize() as u32,
                                     },
                                 ));

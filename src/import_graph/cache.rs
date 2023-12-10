@@ -8,17 +8,18 @@ use std::{
     time::SystemTime,
 };
 
-use crate::ImportMetadata;
-
-use super::{indexing::ModulesByPypath, package_discovery::Module};
+use super::{import_discovery, indexing::ModulesByPypath, package_discovery::Module};
 
 pub(super) trait ImportsCache {
-    fn get_imports(&self, module: &Arc<Module>) -> Option<Vec<(Arc<Module>, ImportMetadata)>>;
+    fn get_imports(
+        &self,
+        module: &Arc<Module>,
+    ) -> Option<Vec<(Arc<Module>, import_discovery::ImportMetadata)>>;
 
     fn set_imports(
         &mut self,
         module: &Arc<Module>,
-        imported_modules: &[(Arc<Module>, ImportMetadata)],
+        imported_modules: &[(Arc<Module>, import_discovery::ImportMetadata)],
     );
 
     fn persist(&self) -> Result<()>;
@@ -41,6 +42,11 @@ struct FileData {
 struct ModuleImports {
     computed_at: u64,
     imports: Vec<(String, ImportMetadata)>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ImportMetadata {
+    line_number: u32,
 }
 
 impl FileCache {
@@ -79,7 +85,10 @@ impl FileCache {
 }
 
 impl ImportsCache for FileCache {
-    fn get_imports(&self, module: &Arc<Module>) -> Option<Vec<(Arc<Module>, ImportMetadata)>> {
+    fn get_imports(
+        &self,
+        module: &Arc<Module>,
+    ) -> Option<Vec<(Arc<Module>, import_discovery::ImportMetadata)>> {
         let pypath = self.pypaths_by_module.get(module)?.to_string();
         let module_imports = self.file_data.module_imports.get(&pypath)?;
         if module.mtime > module_imports.computed_at {
@@ -92,7 +101,11 @@ impl ImportsCache for FileCache {
                 .map(|(pypath, import_metadata)| {
                     (
                         Arc::clone(self.modules_by_pypath.get(pypath).unwrap()),
-                        import_metadata.clone(),
+                        import_discovery::ImportMetadata {
+                            from_module: module.pypath.to_string(),
+                            to_module: pypath.to_string(),
+                            line_number: import_metadata.line_number,
+                        },
                     )
                 })
                 .collect(),
@@ -102,7 +115,7 @@ impl ImportsCache for FileCache {
     fn set_imports(
         &mut self,
         module: &Arc<Module>,
-        imported_modules: &[(Arc<Module>, ImportMetadata)],
+        imported_modules: &[(Arc<Module>, import_discovery::ImportMetadata)],
     ) {
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -115,7 +128,12 @@ impl ImportsCache for FileCache {
                 imports: imported_modules
                     .iter()
                     .map(|(module, import_metadata)| {
-                        (module.pypath.to_string(), import_metadata.clone())
+                        (
+                            module.pypath.to_string(),
+                            ImportMetadata {
+                                line_number: import_metadata.line_number,
+                            },
+                        )
                     })
                     .collect(),
             },
@@ -133,14 +151,17 @@ impl ImportsCache for FileCache {
 pub(super) struct NullCache;
 
 impl ImportsCache for NullCache {
-    fn get_imports(&self, _module: &Arc<Module>) -> Option<Vec<(Arc<Module>, ImportMetadata)>> {
+    fn get_imports(
+        &self,
+        _module: &Arc<Module>,
+    ) -> Option<Vec<(Arc<Module>, import_discovery::ImportMetadata)>> {
         None
     }
 
     fn set_imports(
         &mut self,
         _module: &Arc<Module>,
-        _imported_modules: &[(Arc<Module>, ImportMetadata)],
+        _imported_modules: &[(Arc<Module>, import_discovery::ImportMetadata)],
     ) {
     }
 
