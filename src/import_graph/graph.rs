@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::ImportMetadata;
+
 use super::errors::Error;
 use super::import_discovery;
 use super::indexing;
@@ -16,6 +18,7 @@ pub struct ImportGraph {
     pub(super) modules_by_pypath: indexing::ModulesByPypath,
     pub(super) packages_by_module: indexing::PackagesByModule,
     pub(super) imports: import_discovery::Imports,
+    pub(super) import_metadata_map: import_discovery::ImportMetadataMap,
     pub(super) reverse_imports: import_discovery::Imports,
 }
 
@@ -155,6 +158,35 @@ impl ImportGraph {
             .collect()
     }
 
+    pub fn import_metadata(
+        &self,
+        from_module: &str,
+        to_module: &str,
+    ) -> Result<Option<ImportMetadata>> {
+        let from_module = match self.modules_by_pypath.get(&from_module.to_string()) {
+            Some(module) => Arc::clone(module),
+            None => Err(Error::ModuleNotFound(from_module.to_string()))?,
+        };
+        let to_module = match self.modules_by_pypath.get(&to_module.to_string()) {
+            Some(module) => Arc::clone(module),
+            None => Err(Error::ModuleNotFound(to_module.to_string()))?,
+        };
+        if !self._direct_import_exists(&from_module, &to_module) {
+            return Err(Error::ImportNotFound(
+                from_module.pypath.to_string(),
+                to_module.pypath.to_string(),
+            ))?;
+        }
+        // Metadata may not exist - e.g. in the case of a squashed package.
+        match self.import_metadata_map.get(&from_module) {
+            Some(m) => match m.get(&to_module) {
+                Some(import_metadata) => Ok(Some(import_metadata.clone())),
+                None => Ok(None),
+            },
+            None => Ok(None),
+        }
+    }
+
     pub fn direct_import_exists(
         &self,
         from_module_or_package: &str,
@@ -188,7 +220,7 @@ impl ImportGraph {
         };
         for from_module in from_modules.iter() {
             for to_module in to_modules.iter() {
-                if self._direct_import_exists(Arc::clone(from_module), Arc::clone(to_module)) {
+                if self._direct_import_exists(from_module, to_module) {
                     return Ok(true);
                 }
             }
@@ -196,8 +228,8 @@ impl ImportGraph {
         Ok(false)
     }
 
-    fn _direct_import_exists(&self, from_module: Arc<Module>, to_module: Arc<Module>) -> bool {
-        self.imports.get(&from_module).unwrap().contains(&to_module)
+    fn _direct_import_exists(&self, from_module: &Arc<Module>, to_module: &Arc<Module>) -> bool {
+        self.imports.get(from_module).unwrap().contains(to_module)
     }
 
     pub fn modules_directly_imported_by(&self, module_or_package: &str) -> Result<HashSet<String>> {
@@ -411,6 +443,11 @@ impl ImportGraph {
                 .get_mut(&from_module)
                 .unwrap()
                 .remove(&to_module);
+            import_graph
+                .import_metadata_map
+                .get_mut(&from_module)
+                .unwrap()
+                .remove(&to_module);
         }
         import_graph.reverse_imports = indexing::reverse_imports(&import_graph.imports)?;
         Ok(import_graph)
@@ -451,12 +488,31 @@ impl ImportGraph {
             HashMap::new(),
             |mut hm, (m1, m2)| {
                 let entry: &mut HashSet<Arc<Module>> = hm.entry(Arc::clone(m1)).or_default();
-                if self._direct_import_exists(Arc::clone(m1), Arc::clone(m2)) {
+                if self._direct_import_exists(m1, m2) {
                     entry.insert(Arc::clone(m2));
                 }
                 hm
             },
         );
+
+        let mut import_metadata_map: HashMap<Arc<Module>, HashMap<Arc<Module>, ImportMetadata>> =
+            HashMap::new();
+        for (from_module, imported_modules) in imports.iter() {
+            for to_module in imported_modules.iter() {
+                import_metadata_map
+                    .entry(Arc::clone(from_module))
+                    .or_default()
+                    .insert(
+                        Arc::clone(to_module),
+                        self.import_metadata_map
+                            .get(from_module)
+                            .unwrap()
+                            .get(to_module)
+                            .unwrap()
+                            .clone(),
+                    );
+            }
+        }
 
         let reverse_imports = indexing::reverse_imports(&imports)?;
 
@@ -465,6 +521,7 @@ impl ImportGraph {
             modules_by_pypath,
             packages_by_module,
             imports,
+            import_metadata_map,
             reverse_imports,
         })
     }
@@ -518,6 +575,10 @@ impl ImportGraph {
             import_graph.imports.remove(module_to_remove);
             for imported_modules in import_graph.imports.values_mut() {
                 imported_modules.remove(module_to_remove);
+            }
+            import_graph.import_metadata_map.remove(module_to_remove);
+            for imported_modules_metadata in import_graph.import_metadata_map.values_mut() {
+                imported_modules_metadata.remove(module_to_remove);
             }
             import_graph.reverse_imports.remove(module_to_remove);
             for importing_modules in import_graph.reverse_imports.values_mut() {

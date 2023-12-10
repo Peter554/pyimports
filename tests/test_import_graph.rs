@@ -2,7 +2,7 @@ use maplit::{hashmap, hashset};
 use pretty_assertions::assert_eq;
 use std::path::Path;
 
-use pyimports::{Error, ImportGraphBuilder};
+use pyimports::{Error, ImportGraphBuilder, ImportMetadata};
 
 #[test]
 fn test_packages() {
@@ -1248,5 +1248,28 @@ fn test_exclude_type_checking_imports() {
         .into_iter()
         .map(|s| s.to_string())
         .collect()
+    );
+}
+
+#[test]
+fn test_import_metadata() {
+    let root_package_path = Path::new("./testpackages/somesillypackage");
+    let import_graph = ImportGraphBuilder::new(root_package_path).build().unwrap();
+    assert_eq!(
+        import_graph
+            .import_metadata(
+                "somesillypackage.__init__",
+                "somesillypackage.child3.__init__"
+            )
+            .unwrap()
+            .unwrap(),
+        ImportMetadata { line_number: 23 }
+    );
+    assert_eq!(
+        import_graph
+            .import_metadata("somesillypackage.d", "somesillypackage.e")
+            .unwrap()
+            .unwrap(),
+        ImportMetadata { line_number: 5 }
     );
 }

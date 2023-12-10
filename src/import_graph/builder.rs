@@ -38,7 +38,7 @@ impl ImportGraphBuilder {
         let modules_by_pypath = indexing::get_modules_by_pypath(Arc::clone(&root_package))?;
         let packages_by_module = indexing::get_packages_by_module(Arc::clone(&root_package))?;
 
-        let imports = import_discovery::discover_imports(
+        let (imports, import_metadata_map) = import_discovery::discover_imports(
             Arc::clone(&root_package),
             &modules_by_pypath,
             self.exclude_type_checking_imports,
@@ -51,6 +51,7 @@ impl ImportGraphBuilder {
             modules_by_pypath,
             packages_by_module,
             imports,
+            import_metadata_map,
             reverse_imports,
         })
     }

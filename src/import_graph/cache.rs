@@ -1,19 +1,25 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::{self, create_dir_all},
     path::{Path, PathBuf},
     sync::Arc,
     time::SystemTime,
 };
 
+use crate::ImportMetadata;
+
 use super::{indexing::ModulesByPypath, package_discovery::Module};
 
 pub(super) trait ImportsCache {
-    fn get_imports(&self, module: &Arc<Module>) -> Option<HashSet<Arc<Module>>>;
+    fn get_imports(&self, module: &Arc<Module>) -> Option<Vec<(Arc<Module>, ImportMetadata)>>;
 
-    fn set_imports(&mut self, module: &Arc<Module>, imported_modules: &HashSet<Arc<Module>>);
+    fn set_imports(
+        &mut self,
+        module: &Arc<Module>,
+        imported_modules: &[(Arc<Module>, ImportMetadata)],
+    );
 
     fn persist(&self) -> Result<()>;
 }
@@ -34,7 +40,7 @@ struct FileData {
 #[derive(Debug, Serialize, Deserialize)]
 struct ModuleImports {
     computed_at: u64,
-    imports: HashSet<String>,
+    imports: Vec<(String, ImportMetadata)>,
 }
 
 impl FileCache {
@@ -73,7 +79,7 @@ impl FileCache {
 }
 
 impl ImportsCache for FileCache {
-    fn get_imports(&self, module: &Arc<Module>) -> Option<HashSet<Arc<Module>>> {
+    fn get_imports(&self, module: &Arc<Module>) -> Option<Vec<(Arc<Module>, ImportMetadata)>> {
         let pypath = self.pypaths_by_module.get(module)?.to_string();
         let module_imports = self.file_data.module_imports.get(&pypath)?;
         if module.mtime > module_imports.computed_at {
@@ -83,12 +89,21 @@ impl ImportsCache for FileCache {
             module_imports
                 .imports
                 .iter()
-                .map(|pypath| Arc::clone(self.modules_by_pypath.get(pypath).unwrap()))
+                .map(|(pypath, import_metadata)| {
+                    (
+                        Arc::clone(self.modules_by_pypath.get(pypath).unwrap()),
+                        import_metadata.clone(),
+                    )
+                })
                 .collect(),
         )
     }
 
-    fn set_imports(&mut self, module: &Arc<Module>, imported_modules: &HashSet<Arc<Module>>) {
+    fn set_imports(
+        &mut self,
+        module: &Arc<Module>,
+        imported_modules: &[(Arc<Module>, ImportMetadata)],
+    ) {
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -99,7 +114,9 @@ impl ImportsCache for FileCache {
                 computed_at: now,
                 imports: imported_modules
                     .iter()
-                    .map(|m| m.pypath.to_string())
+                    .map(|(module, import_metadata)| {
+                        (module.pypath.to_string(), import_metadata.clone())
+                    })
                     .collect(),
             },
         );
@@ -107,7 +124,7 @@ impl ImportsCache for FileCache {
 
     fn persist(&self) -> Result<()> {
         create_dir_all(&self.file_dir)?;
-        let s = serde_json::to_string(&self.file_data)?;
+        let s = serde_json::to_string_pretty(&self.file_data)?;
         fs::write(&self.file_path, s)?;
         Ok(())
     }
@@ -116,11 +133,16 @@ impl ImportsCache for FileCache {
 pub(super) struct NullCache;
 
 impl ImportsCache for NullCache {
-    fn get_imports(&self, _module: &Arc<Module>) -> Option<HashSet<Arc<Module>>> {
+    fn get_imports(&self, _module: &Arc<Module>) -> Option<Vec<(Arc<Module>, ImportMetadata)>> {
         None
     }
 
-    fn set_imports(&mut self, _module: &Arc<Module>, _imported_modules: &HashSet<Arc<Module>>) {}
+    fn set_imports(
+        &mut self,
+        _module: &Arc<Module>,
+        _imported_modules: &[(Arc<Module>, ImportMetadata)],
+    ) {
+    }
 
     fn persist(&self) -> Result<()> {
         Ok(())
