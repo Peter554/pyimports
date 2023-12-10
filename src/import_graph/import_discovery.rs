@@ -3,6 +3,7 @@ use rayon::prelude::*;
 use rustpython_parser::{
     self,
     ast::{Mod, Stmt},
+    source_code::LinearLocator,
 };
 use std::collections::HashSet;
 use std::fs;
@@ -15,12 +16,21 @@ use super::package_discovery::{Module, Package};
 
 pub(super) type Imports = HashMap<Arc<Module>, HashSet<Arc<Module>>>;
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ImportMetadata {
+    pub from_module: String,
+    pub to_module: String,
+    pub line_number: u32,
+}
+
+pub(super) type ImportMetadataMap = HashMap<Arc<Module>, HashMap<Arc<Module>, ImportMetadata>>;
+
 pub(super) fn discover_imports(
     root_package: Arc<Package>,
     modules_by_pypath: &indexing::ModulesByPypath,
     exclude_type_checking_imports: bool,
     use_cache: bool,
-) -> Result<Imports> {
+) -> Result<(Imports, ImportMetadataMap)> {
     let mut cache: Box<dyn ImportsCache + Sync> = if use_cache {
         Box::new(FileCache::open(
             root_package.path.as_path(),
@@ -46,12 +56,30 @@ pub(super) fn discover_imports(
             };
             Ok((Arc::clone(module), imports))
         })
-        .collect::<Result<Imports>>()?;
+        .collect::<Result<Vec<_>>>()?;
     for (module, imported_modules) in imports.iter() {
         cache.set_imports(module, imported_modules);
     }
     cache.persist()?;
-    Ok(imports)
+
+    let mut out_imports: Imports = HashMap::new();
+    let mut out_import_metadata_map: ImportMetadataMap = HashMap::new();
+    for module in modules_by_pypath.values() {
+        out_imports.entry(Arc::clone(module)).or_default();
+    }
+    for (importing_module, imports) in imports {
+        for (imported_module, import_metadata) in imports {
+            out_imports
+                .get_mut(&importing_module)
+                .unwrap()
+                .insert(Arc::clone(&imported_module));
+            out_import_metadata_map
+                .entry(Arc::clone(&importing_module))
+                .or_default()
+                .insert(Arc::clone(&imported_module), import_metadata.clone());
+        }
+    }
+    Ok((out_imports, out_import_metadata_map))
 }
 
 fn get_imports_for_module(
@@ -59,7 +87,7 @@ fn get_imports_for_module(
     module: Arc<Module>,
     modules_by_pypath: &indexing::ModulesByPypath,
     exclude_type_checking_imports: bool,
-) -> Result<HashSet<Arc<Module>>> {
+) -> Result<Vec<(Arc<Module>, ImportMetadata)>> {
     let code = fs::read_to_string(module.path.as_ref())?;
     let ast = rustpython_parser::parse(
         &code,
@@ -73,13 +101,15 @@ fn get_imports_for_module(
         },
         Err(e) => return Err(e)?,
     };
+    let locator = LinearLocator::new(&code);
 
     let mut visitor = ImportVisitor {
         root_package,
         module,
         modules_by_pypath,
         exclude_type_checking_imports,
-        imports: HashSet::new(),
+        locator,
+        imports: vec![],
     };
     ast_visit::visit_statements(&ast, &mut visitor)?;
 
@@ -91,7 +121,8 @@ struct ImportVisitor<'a> {
     module: Arc<Module>,
     modules_by_pypath: &'a indexing::ModulesByPypath,
     exclude_type_checking_imports: bool,
-    imports: HashSet<Arc<Module>>,
+    locator: LinearLocator<'a>,
+    imports: Vec<(Arc<Module>, ImportMetadata)>,
 }
 
 impl ast_visit::StatementVisitor for ImportVisitor<'_> {
@@ -99,6 +130,8 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
         match stmt {
             Stmt::Import(stmt) => {
                 for name in stmt.names.iter() {
+                    let location = self.locator.locate(name.range.start());
+
                     if !(name.name.as_str() == self.root_package.pypath.as_ref()
                         || name
                             .name
@@ -113,7 +146,14 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                     for pypath in [name.name.to_string(), format!("{}.__init__", name.name)] {
                         match self.modules_by_pypath.get(&pypath) {
                             Some(imported_module) => {
-                                self.imports.insert(Arc::clone(imported_module));
+                                self.imports.push((
+                                    Arc::clone(imported_module),
+                                    ImportMetadata {
+                                        from_module: self.module.pypath.to_string(),
+                                        to_module: imported_module.pypath.to_string(),
+                                        line_number: location.row.to_usize() as u32,
+                                    },
+                                ));
                                 found_module = true;
                                 break;
                             }
@@ -170,6 +210,8 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                 }
 
                 for name in stmt.names.iter() {
+                    let location = self.locator.locate(name.range.start());
+
                     let mut found_module = false;
                     for pypath in [
                         format!("{}.{}", &pypath_prefix, name.name),
@@ -179,7 +221,14 @@ impl ast_visit::StatementVisitor for ImportVisitor<'_> {
                     ] {
                         match self.modules_by_pypath.get(&pypath) {
                             Some(imported_module) => {
-                                self.imports.insert(Arc::clone(imported_module));
+                                self.imports.push((
+                                    Arc::clone(imported_module),
+                                    ImportMetadata {
+                                        from_module: self.module.pypath.to_string(),
+                                        to_module: imported_module.pypath.to_string(),
+                                        line_number: location.row.to_usize() as u32,
+                                    },
+                                ));
                                 found_module = true;
                                 break;
                             }

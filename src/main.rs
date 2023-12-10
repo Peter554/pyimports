@@ -1,36 +1,100 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::Result;
-use std::{env, path::Path};
+use clap::{Parser, Subcommand};
 
 use pyimports::ImportGraphBuilder;
+use serde::Serialize;
+
+#[derive(Parser)]
+struct Cli {
+    root_package_path: PathBuf,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    Export {
+        #[arg(long)]
+        exclude_type_checking_imports: bool,
+    },
+}
 
 fn main() -> Result<()> {
-    let args: Vec<String> = env::args().collect();
-    let root_package_path = Path::new(&args[1]);
+    let cli = Cli::parse();
 
-    let import_graph = {
-        let mut import_graph = ImportGraphBuilder::new(root_package_path)
-            .use_cache()
-            .build()?;
-        if args.len() == 2 {
-            import_graph
-        } else {
-            import_graph = import_graph.subgraph(&args[2])?;
-            // for child_package in import_graph.child_packages(&args[2])? {
-            //     import_graph = import_graph.squash_package(&child_package)?;
-            // }
-            import_graph
-        }
-    };
+    match cli.command {
+        Some(Command::Export {
+            exclude_type_checking_imports,
+        }) => export(&cli.root_package_path, exclude_type_checking_imports),
+        _ => Ok(()),
+    }
+}
 
-    println!("digraph {{");
-    println!("    concentrate=true;");
-    for module in import_graph.modules() {
-        println!("    \"{}\";", module);
+fn export(root_package_path: &Path, exclude_type_checking_imports: bool) -> Result<()> {
+    let mut builder = ImportGraphBuilder::new(root_package_path).use_cache();
+    if exclude_type_checking_imports {
+        builder = builder.exclude_type_checking_imports();
     }
-    for (from_module, to_module) in import_graph.direct_imports_flat() {
-        println!("    \"{}\" -> \"{}\";", from_module, to_module);
+    let graph = builder.build()?;
+
+    let packages = graph.packages().into_iter().map(|pypath| Package {
+        __type__: "package".to_string(),
+        pypath,
+    });
+    let modules = graph.modules().into_iter().map(|pypath| Module {
+        __type__: "module".to_string(),
+        pypath: pypath.clone(),
+        package_pypath: graph.package_from_module(&pypath).unwrap(),
+    });
+    let imports =
+        graph
+            .direct_imports_flat()
+            .into_iter()
+            .map(|(from_module_pypath, to_module_pypath)| {
+                let import_metadata = graph
+                    .import_metadata(&from_module_pypath, &to_module_pypath)
+                    .unwrap();
+                Import {
+                    __type__: "import".to_string(),
+                    from_module_pypath,
+                    to_module_pypath,
+                    line_number: import_metadata.map(|m| m.line_number),
+                }
+            });
+
+    for package in packages {
+        println!("{}", serde_json::to_string(&package)?);
     }
-    println!("}}");
+    for module in modules {
+        println!("{}", serde_json::to_string(&module)?);
+    }
+    for import in imports {
+        println!("{}", serde_json::to_string(&import)?);
+    }
 
     Ok(())
+}
+
+#[derive(Debug, Serialize)]
+struct Package {
+    __type__: String,
+    pypath: String,
+}
+
+#[derive(Debug, Serialize)]
+struct Module {
+    __type__: String,
+    pypath: String,
+    package_pypath: String,
+}
+
+#[derive(Debug, Serialize)]
+struct Import {
+    __type__: String,
+    from_module_pypath: String,
+    to_module_pypath: String,
+    line_number: Option<u32>,
 }
