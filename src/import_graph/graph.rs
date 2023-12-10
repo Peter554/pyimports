@@ -412,6 +412,7 @@ impl ImportGraph {
                 .unwrap()
                 .remove(&to_module);
         }
+        import_graph.reverse_imports = indexing::reverse_imports(&import_graph.imports)?;
         Ok(import_graph)
     }
 
@@ -475,7 +476,7 @@ impl ImportGraph {
                 return Err(Error::PackageNotFound(package.to_string()))?;
             }
         };
-        let init_module = self.init_module(package);
+        let init_module = self._init_module(package);
 
         let packages_to_remove = self._descendant_packages(package)?;
         let modules_to_remove = {
@@ -544,7 +545,7 @@ impl ImportGraph {
         Ok(import_graph)
     }
 
-    fn init_module(&self, package: &Arc<Package>) -> Arc<Module> {
+    fn _init_module(&self, package: &Arc<Package>) -> Arc<Module> {
         package
             .modules
             .iter()
