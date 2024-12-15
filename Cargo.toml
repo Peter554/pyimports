@@ -17,9 +17,11 @@ exclude = [
 
 [dependencies]
 anyhow = "1.0.94"
+maplit = "1.0.2"
+rayon = "1.10.0"
 rustpython-parser = "0.4.0"
+slotmap = "1.0.7"
 thiserror = "2.0.7"
 
 [dev-dependencies]
-maplit = "1.0.2"
 tempdir = "0.3.7"

@@ -1,4 +1,4 @@
-mod package_discovery;
+pub mod package_discovery;
 
 #[cfg(test)]
 mod testutils;

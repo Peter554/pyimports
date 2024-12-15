@@ -3,31 +3,36 @@ use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempdir::TempDir;
 
 pub(crate) struct TestPackage {
-    temp_dir: TempDir,
+    // Need to move the TempDir into TestPackage to avoid it being dropped.
+    _temp_dir: TempDir,
+    dir_path: PathBuf,
 }
 
 impl TestPackage {
-    pub fn new(modules: HashMap<&str, &str>) -> Result<TestPackage> {
+    pub fn new(name: &str, modules: HashMap<&str, &str>) -> Result<TestPackage> {
+        let temp_dir = TempDir::new("")?;
+        let dir_path = temp_dir.path().join(name);
+        fs::create_dir(&dir_path)?;
         let test_package = TestPackage {
-            temp_dir: TempDir::new("")?,
+            _temp_dir: temp_dir,
+            dir_path,
         };
-        for (module, contents) in modules.into_iter() {
-            let path = module.replace(".", "/") + ".py";
-            test_package.add_file(&path, contents)?;
+        for (path, contents) in modules.into_iter() {
+            test_package.add_file(path, contents)?;
         }
         Ok(test_package)
     }
 
     pub fn path(&self) -> &Path {
-        return self.temp_dir.path();
+        &self.dir_path
     }
 
     fn add_file(&self, path: &str, contents: &str) -> Result<()> {
-        let file_path = self.temp_dir.path().join(path);
+        let file_path = self.dir_path.join(path);
         let file_dir = file_path.parent().unwrap();
         fs::create_dir_all(file_dir)?;
         let mut tmp_file = File::create(file_path)?;
