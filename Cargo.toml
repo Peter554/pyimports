@@ -24,4 +24,6 @@ slotmap = "1.0.7"
 thiserror = "2.0.7"
 
 [dev-dependencies]
+parameterized = "2.0.0"
+pretty_assertions = "1.4.1"
 tempdir = "0.3.7"

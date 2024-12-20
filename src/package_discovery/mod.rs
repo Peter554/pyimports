@@ -7,6 +7,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::utils::path_to_pypath;
+
 new_key_type! { pub struct PackageToken; }
 new_key_type! { pub struct ModuleToken; }
 
@@ -55,6 +57,7 @@ pub struct Module {
     pub token: ModuleToken,
     pub parent: PackageToken,
 }
+
 impl Module {
     fn new(
         token: ModuleToken,
@@ -68,7 +71,7 @@ impl Module {
             parent: parent_token,
             pypath: pypath.to_string(),
             path: path.to_path_buf(),
-            is_init: path.ends_with(".__init__.py"),
+            is_init: path.file_name().unwrap().to_str().unwrap() == "__init__.py",
         }
     }
 
@@ -77,7 +80,7 @@ impl Module {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PackageInfo {
     root: PackageToken,
     packages: SlotMap<PackageToken, Package>,
@@ -89,15 +92,36 @@ pub struct PackageInfo {
 }
 
 #[derive(Debug, Clone)]
-pub enum ItemToken {
+pub enum PackageItem<'a> {
+    Package(&'a Package),
+    Module(&'a Module),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PackageItemToken {
     Package(PackageToken),
     Module(ModuleToken),
 }
 
-#[derive(Debug, Clone)]
-pub enum Item<'a> {
-    Package(&'a Package),
-    Module(&'a Module),
+impl From<PackageToken> for PackageItemToken {
+    fn from(value: PackageToken) -> Self {
+        PackageItemToken::Package(value)
+    }
+}
+
+impl From<ModuleToken> for PackageItemToken {
+    fn from(value: ModuleToken) -> Self {
+        PackageItemToken::Module(value)
+    }
+}
+
+impl<'a> PackageItem<'a> {
+    pub fn token(&'a self) -> PackageItemToken {
+        match self {
+            PackageItem::Package(p) => p.token.into(),
+            PackageItem::Module(m) => m.token.into(),
+        }
+    }
 }
 
 impl<'a> PackageInfo {
@@ -147,7 +171,6 @@ impl<'a> PackageInfo {
                     modules_by_path.insert(path.clone(), token);
                     modules_by_pypath.insert(path_to_pypath(&path, root_path)?, token);
                 }
-                _ => panic!(),
             }
         }
 
@@ -162,30 +185,30 @@ impl<'a> PackageInfo {
         })
     }
 
-    pub fn get_item_by_path(&self, path: &Path) -> Option<Item> {
+    pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
         if let Some(package) = self.packages_by_path.get(path) {
-            self.get_package(*package).map(Item::Package)
+            self.get_package(*package).map(PackageItem::Package)
         } else if let Some(module) = self.modules_by_path.get(path) {
-            self.get_module(*module).map(Item::Module)
+            self.get_module(*module).map(PackageItem::Module)
         } else {
             None
         }
     }
 
-    pub fn get_item_by_pypath(&self, pypath: &str) -> Option<Item> {
+    pub fn get_item_by_pypath(&self, pypath: &str) -> Option<PackageItem> {
         if let Some(package) = self.packages_by_pypath.get(pypath) {
-            self.get_package(*package).map(Item::Package)
+            self.get_package(*package).map(PackageItem::Package)
         } else if let Some(module) = self.modules_by_pypath.get(pypath) {
-            self.get_module(*module).map(Item::Module)
+            self.get_module(*module).map(PackageItem::Module)
         } else {
             None
         }
     }
 
-    pub fn get_item(&self, token: ItemToken) -> Option<Item> {
+    pub fn get_item(&self, token: PackageItemToken) -> Option<PackageItem> {
         match token {
-            ItemToken::Package(token) => self.get_package(token).map(Item::Package),
-            ItemToken::Module(token) => self.get_module(token).map(Item::Module),
+            PackageItemToken::Package(token) => self.get_package(token).map(PackageItem::Package),
+            PackageItemToken::Module(token) => self.get_module(token).map(PackageItem::Module),
         }
     }
 
@@ -204,21 +227,23 @@ impl<'a> PackageInfo {
     pub fn get_child_items(
         &'a self,
         token: PackageToken,
-    ) -> Option<Box<dyn Iterator<Item = Item<'a>> + 'a>> {
+    ) -> Option<impl Iterator<Item = PackageItem<'a>>> {
         match self.get_package(token) {
             Some(package) => {
                 let child_packages_iter = package
                     .packages
                     .iter()
                     .filter_map(|p| self.get_package(*p))
-                    .map(Item::Package);
+                    .map(PackageItem::Package);
                 let child_modules_iter = package
                     .modules
                     .iter()
                     .filter_map(|m| self.get_module(*m))
-                    .map(Item::Module);
-                let iter = child_packages_iter.chain(child_modules_iter);
-                Some(Box::new(iter))
+                    .map(PackageItem::Module);
+                let v = child_packages_iter
+                    .chain(child_modules_iter)
+                    .collect::<Vec<_>>();
+                Some(v.into_iter())
             }
             None => None,
         }
@@ -227,7 +252,7 @@ impl<'a> PackageInfo {
     pub fn get_descendant_items(
         &'a self,
         token: PackageToken,
-    ) -> Option<Box<dyn Iterator<Item = Item<'a>> + 'a>> {
+    ) -> Option<impl Iterator<Item = PackageItem<'a>>> {
         match self.get_child_items(token) {
             Some(children) => {
                 let iter = children.chain(
@@ -238,40 +263,33 @@ impl<'a> PackageInfo {
                             self.get_descendant_items(child_package.token).unwrap()
                         }),
                 );
-                Some(Box::new(iter))
+                let v = iter.collect::<Vec<_>>();
+                Some(v.into_iter())
             }
             None => None,
         }
     }
 
-    pub fn get_all_items(&'a self) -> Box<dyn Iterator<Item = Item<'a>> + 'a> {
-        let iter = std::iter::once(Item::Package(self.get_root()))
+    pub fn get_all_items(&'a self) -> impl Iterator<Item = PackageItem<'a>> {
+        let iter = std::iter::once(PackageItem::Package(self.get_root()))
             .chain(self.get_descendant_items(self.root).unwrap());
-        Box::new(iter)
+        let v = iter.collect::<Vec<_>>();
+        v.into_iter()
     }
 }
 
-pub fn filter_packages(item: Item<'_>) -> Option<&Package> {
+pub fn filter_packages(item: PackageItem<'_>) -> Option<&Package> {
     match item {
-        Item::Package(package) => Some(package),
+        PackageItem::Package(package) => Some(package),
         _ => None,
     }
 }
 
-pub fn filter_modules(item: Item<'_>) -> Option<&Module> {
+pub fn filter_modules(item: PackageItem<'_>) -> Option<&Module> {
     match item {
-        Item::Module(module) => Some(module),
+        PackageItem::Module(module) => Some(module),
         _ => None,
     }
-}
-
-fn path_to_pypath(path: &Path, root_path: &Path) -> Result<String> {
-    let path = path.strip_prefix(root_path.parent().unwrap())?;
-    let mut s = path.to_str().unwrap();
-    if s.ends_with(".py") {
-        s = s.strip_suffix(".py").unwrap();
-    }
-    Ok(s.replace("/", "."))
 }
 
 #[cfg(test)]
@@ -279,6 +297,7 @@ mod tests {
     use super::*;
     use crate::testutils::TestPackage;
     use maplit::{hashmap, hashset};
+    use pretty_assertions::assert_eq;
 
     fn create_test_package() -> Result<TestPackage> {
         let test_package = TestPackage::new(
@@ -316,8 +335,8 @@ mod tests {
                 .unwrap()
                 .map(|item| {
                     match item {
-                        Item::Package(p) => p._unit_test_string(),
-                        Item::Module(m) => m._unit_test_string(),
+                        PackageItem::Package(p) => p._unit_test_string(),
+                        PackageItem::Module(m) => m._unit_test_string(),
                     }
                 })
                 .collect::<HashSet<_>>(),
@@ -343,8 +362,8 @@ mod tests {
                 .unwrap()
                 .map(|item| {
                     match item {
-                        Item::Package(p) => p._unit_test_string(),
-                        Item::Module(m) => m._unit_test_string(),
+                        PackageItem::Package(p) => p._unit_test_string(),
+                        PackageItem::Module(m) => m._unit_test_string(),
                     }
                 })
                 .collect::<HashSet<_>>(),
@@ -379,8 +398,8 @@ mod tests {
                 .get_all_items()
                 .map(|item| {
                     match item {
-                        Item::Package(p) => p._unit_test_string(),
-                        Item::Module(m) => m._unit_test_string(),
+                        PackageItem::Package(p) => p._unit_test_string(),
+                        PackageItem::Module(m) => m._unit_test_string(),
                     }
                 })
                 .collect::<HashSet<_>>(),

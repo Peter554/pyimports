@@ -78,9 +78,9 @@ impl<'a> DirectoryReader<'a> {
         })
     }
 
-    pub fn read(&'a self, path: &Path) -> Result<Vec<FsItem>> {
+    pub fn read(&'a self, path: &Path) -> Result<impl Iterator<Item = FsItem>> {
         if !self.dir_filters.iter().all(|f| f.filter(path)) {
-            return Ok(vec![]);
+            return Ok(vec![].into_iter());
         }
 
         let mut v = vec![FsItem::Directory {
@@ -96,9 +96,8 @@ impl<'a> DirectoryReader<'a> {
                     let file_type = dir_item.file_type()?;
                     let is_dir = file_type.is_dir();
                     let is_file = file_type.is_file();
-                    let is_symlink = file_type.is_symlink();
                     if is_dir {
-                        v.extend(self.read(&path)?);
+                        v.extend((self.read(&path)?).collect::<Vec<_>>());
                     } else if is_file && self.file_filters.iter().all(|filter| filter.filter(&path))
                     {
                         v.push(FsItem::File { path: path.clone() });
@@ -111,7 +110,7 @@ impl<'a> DirectoryReader<'a> {
                 })?,
         );
 
-        Ok(v)
+        Ok(v.into_iter())
     }
 }
 
@@ -144,7 +143,9 @@ mod tests {
     fn test_build() -> Result<()> {
         let test_package = create_test_package()?;
 
-        let paths = DirectoryReader::new().read(test_package.path())?;
+        let paths = DirectoryReader::new()
+            .read(test_package.path())?
+            .collect::<Vec<_>>();
 
         assert_eq!(paths.len(), 13);
         assert_eq!(
@@ -187,7 +188,8 @@ mod tests {
         let paths = DirectoryReader::new()
             .exclude_hidden_items()
             .filter_file_extension("py")
-            .read(test_package.path())?;
+            .read(test_package.path())?
+            .collect::<Vec<_>>();
 
         assert_eq!(paths.len(), 9);
         assert_eq!(

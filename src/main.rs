@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::time;
 use std::{env, path};
 
-use pyimports::package_discovery;
+use pyimports::{import_discovery, package_discovery};
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -12,6 +12,10 @@ fn main() -> Result<()> {
         package_discovery::PackageInfo::build(&root_path)
     })?;
     println!("{} items", package_info.get_all_items().count());
+
+    let imports_info = timeit("Import discovery", || {
+        import_discovery::ImportsInfo::build_from_package_info(&package_info)
+    })?;
 
     Ok(())
 }
