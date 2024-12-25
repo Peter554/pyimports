@@ -6,8 +6,8 @@ use rustpython_parser::{
 };
 use std::{fs, path::Path};
 
-use crate::import_discovery::ast_visit;
 use crate::utils::path_to_pypath;
+use crate::{errors::Error, import_discovery::ast_visit};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RawImport {
@@ -23,9 +23,12 @@ pub fn discover_imports(path: &Path) -> Result<Vec<RawImport>> {
         &code,
         rustpython_parser::Mode::Module,
         path.to_str().unwrap(),
-    )? {
-        Mod::Module(m) => m,
-        _ => panic!("Not a module"),
+    ) {
+        Ok(ast) => ast,
+        Err(err) => Err(Error::UnableToParsePythonFile {
+            path: path.to_path_buf(),
+            parse_error: err,
+        })?,
     };
 
     let locator = LinearLocator::new(&code);

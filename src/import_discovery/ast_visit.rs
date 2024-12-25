@@ -1,18 +1,22 @@
 use anyhow::Result;
-use rustpython_parser::ast::{ExceptHandler, ModModule, Stmt};
+use rustpython_parser::ast::{ExceptHandler, Mod, Stmt};
 
 pub fn visit_statements<TVisitor, TContext>(
-    ast: &ModModule,
+    ast: &Mod,
     visitor: &mut TVisitor,
     context: TContext,
 ) -> Result<()>
 where
     TVisitor: StatementVisitor<TContext>,
 {
-    for stmt in ast.body.iter() {
-        visit_stmt(stmt, visitor, &context)?;
+    if let Mod::Module(m) = ast {
+        for stmt in m.body.iter() {
+            visit_stmt(stmt, visitor, &context)?;
+        }
+        Ok(())
+    } else {
+        panic!("not a module")
     }
-    Ok(())
 }
 
 pub trait StatementVisitor<TContext> {
