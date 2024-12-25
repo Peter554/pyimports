@@ -105,6 +105,20 @@ impl ImportsInfo {
         Ok(imports_info)
     }
 
+    pub fn exclude_typechecking_imports(&self) -> Result<Self> {
+        let imports = self
+            .internal_imports_metadata
+            .iter()
+            .filter_map(|((from, to), metadata)| {
+                if metadata.is_typechecking {
+                    Some((*from, *to))
+                } else {
+                    None
+                }
+            });
+        self.exclude_imports(imports)
+    }
+
     fn initialise_maps(&mut self) -> Result<()> {
         for item in self.package_info.get_all_items() {
             self.internal_imports
@@ -375,6 +389,114 @@ from testpackage import b
             hashmap! {
                 (root_package_init, b) => ImportMetadata{
                     line_number: 3,
+                    is_typechecking: false,
+                },
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_exclude_typechecking_imports() -> Result<()> {
+        let test_package = testpackage! {
+            "__init__.py" => "
+from typing import TYPE_CHECKING
+
+import testpackage.a
+
+if TYPE_CHECKING:
+    from testpackage import b
+",
+            "a.py" => "",
+            "b.py" => ""
+        };
+
+        let package_info = PackageInfo::build(test_package.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let root_package = imports_info
+            .package_info
+            .get_item_by_pypath("testpackage")
+            .unwrap()
+            .token();
+        let root_package_init = imports_info
+            .package_info
+            .get_item_by_pypath("testpackage.__init__")
+            .unwrap()
+            .token();
+        let a = imports_info
+            .package_info
+            .get_item_by_pypath("testpackage.a")
+            .unwrap()
+            .token();
+        let b = imports_info
+            .package_info
+            .get_item_by_pypath("testpackage.b")
+            .unwrap()
+            .token();
+
+        assert_eq!(
+            imports_info.internal_imports,
+            hashmap! {
+                root_package => hashset! {root_package_init},
+                root_package_init => hashset! {a, b},
+                a => hashset! {},
+                b => hashset!{},
+            }
+        );
+
+        assert_eq!(
+            imports_info.reverse_internal_imports,
+            hashmap! {
+                root_package => hashset!{},
+                root_package_init => hashset! {root_package},
+                a => hashset! {root_package_init},
+                b => hashset! {root_package_init},
+            }
+        );
+
+        assert_eq!(
+            imports_info.internal_imports_metadata,
+            hashmap! {
+                (root_package_init, a) => ImportMetadata{
+                    line_number: 4,
+                    is_typechecking: false,
+                },
+                (root_package_init, b) => ImportMetadata{
+                    line_number: 7,
+                    is_typechecking: true,
+                },
+            }
+        );
+
+        let imports_info = imports_info.exclude_typechecking_imports()?;
+
+        assert_eq!(
+            imports_info.internal_imports,
+            hashmap! {
+                root_package => hashset! {root_package_init},
+                root_package_init => hashset! {a},
+                a => hashset! {},
+                b => hashset!{},
+            }
+        );
+
+        assert_eq!(
+            imports_info.reverse_internal_imports,
+            hashmap! {
+                root_package => hashset!{},
+                root_package_init => hashset! {root_package},
+                a => hashset! {root_package_init},
+                b => hashset! {},
+            }
+        );
+
+        assert_eq!(
+            imports_info.internal_imports_metadata,
+            hashmap! {
+                (root_package_init, a) => ImportMetadata{
+                    line_number: 4,
                     is_typechecking: false,
                 },
             }
