@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     println!("{} items", package_info.queries().get_all_items().count());
 
     let imports_info = timeit("Import discovery", || {
-        import_discovery::ImportsInfo::build_from_package_info(&package_info)
+        import_discovery::ImportsInfo::build(package_info.clone())
     })?;
 
     Ok(())

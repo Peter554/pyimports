@@ -35,12 +35,7 @@ pub struct ImportsInfo {
 }
 
 impl ImportsInfo {
-    pub fn build(path: &Path) -> Result<Self> {
-        let package_info = PackageInfo::build(path)?;
-        ImportsInfo::build_from_package_info(&package_info)
-    }
-
-    pub fn build_from_package_info(package_info: &PackageInfo) -> Result<Self> {
+    pub fn build(package_info: PackageInfo) -> Result<Self> {
         let all_raw_imports = get_all_raw_imports(&package_info)?;
 
         let mut imports_info = ImportsInfo {
@@ -234,7 +229,8 @@ from django.db import models
             },
         )?;
 
-        let imports_info = ImportsInfo::build(test_package.path())?;
+        let package_info = PackageInfo::build(test_package.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
 
         let root_package = imports_info
             .package_info
