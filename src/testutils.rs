@@ -31,7 +31,7 @@ impl TestPackage {
         &self.dir_path
     }
 
-    fn add_file(&self, path: &str, contents: &str) -> Result<()> {
+    pub fn add_file(&self, path: &str, contents: &str) -> Result<()> {
         let file_path = self.dir_path.join(path);
         let file_dir = file_path.parent().unwrap();
         fs::create_dir_all(file_dir)?;
@@ -40,3 +40,15 @@ impl TestPackage {
         Ok(())
     }
 }
+
+macro_rules! testpackage {
+    ($($k:expr => $v:expr),*) => {{
+        let test_package = TestPackage::new("testpackage", std::collections::HashMap::new())?;
+        $(
+            test_package.add_file($k, $v)?;
+        )*
+        test_package
+    }};
+}
+
+pub(crate) use testpackage;

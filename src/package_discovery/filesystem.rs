@@ -117,27 +117,23 @@ impl<'a> DirectoryReader<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutils::TestPackage;
-    use maplit::{hashmap, hashset};
+    use crate::testutils::{testpackage, TestPackage};
+    use maplit::hashset;
     use pretty_assertions::assert_eq;
     use std::collections::HashSet;
 
     fn create_test_package() -> Result<TestPackage> {
-        let test_package = TestPackage::new(
-            "testpackage",
-            hashmap! {
-                "__init__.py" => "",
-                "main.py" => "",
-                "food/__init__.py" => "",
-                "food/pizza.py" => "",
-                "food/fruit/__init__.py" => "",
-                "food/fruit/apple.py" => "",
-                "foo.txt" => "",
-                ".gitignore" => "",
-                ".linter/config" => ""
-            },
-        )?;
-        Ok(test_package)
+        Ok(testpackage!(
+            "__init__.py" => "",
+            "main.py" => "",
+            "food/__init__.py" => "",
+            "food/pizza.py" => "",
+            "food/fruit/__init__.py" => "",
+            "food/fruit/apple.py" => "",
+            "foo.txt" => "",
+            ".gitignore" => "",
+            ".linter/config" => ""
+        ))
     }
 
     #[test]

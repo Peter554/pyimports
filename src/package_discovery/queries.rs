@@ -118,7 +118,7 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::testutils::TestPackage;
+    use crate::testutils::{testpackage, TestPackage};
     use maplit::{hashmap, hashset};
     use pretty_assertions::assert_eq;
 
@@ -135,21 +135,17 @@ mod tests {
     }
 
     fn create_test_package() -> Result<TestPackage> {
-        let test_package = TestPackage::new(
-            "testpackage",
-            hashmap! {
-                "__init__.py" => "",
-                "main.py" => "",
-                "colors/__init__.py" => "",
-                "colors/red.py" => "",
-                "food/__init__.py" => "",
-                "food/pizza.py" => "",
-                "food/fruit/__init__.py" => "",
-                "food/fruit/apple.py" => "",
-                "data.txt" => "",
-            },
-        )?;
-        Ok(test_package)
+        Ok(testpackage! {
+            "__init__.py" => "",
+            "main.py" => "",
+            "colors/__init__.py" => "",
+            "colors/red.py" => "",
+            "food/__init__.py" => "",
+            "food/pizza.py" => "",
+            "food/fruit/__init__.py" => "",
+            "food/fruit/apple.py" => "",
+            "data.txt" => ""
+        })
     }
 
     #[test]

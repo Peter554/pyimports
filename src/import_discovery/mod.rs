@@ -197,27 +197,26 @@ fn strip_final_part(pypath: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutils::TestPackage;
+    use crate::testutils::{testpackage, TestPackage};
     use maplit::{hashmap, hashset};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_build() -> Result<()> {
-        let test_package = TestPackage::new(
-            "testpackage",
-            hashmap! {
-                "__init__.py" => "
+        let test_package = testpackage! {
+            "__init__.py" => "
 from testpackage import a
 from testpackage import b
 ",
-                "a.py" => "
+
+            "a.py" => "
 from testpackage.b import HELLO
 ",
-                "b.py" => "
+
+            "b.py" => "
 from django.db import models
 "
-            },
-        )?;
+        };
 
         let package_info = PackageInfo::build(test_package.path())?;
         let imports_info = ImportsInfo::build(package_info)?;

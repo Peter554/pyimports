@@ -159,7 +159,7 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutils::TestPackage;
+    use crate::testutils::{testpackage, TestPackage};
     use maplit::hashmap;
     use parameterized::parameterized;
     use std::collections::HashSet;
@@ -309,12 +309,9 @@ else:
         },
     })]
     fn test_discover_imports(case: TestCase) -> Result<()> {
-        let test_package = TestPackage::new(
-            "testpackage",
-            hashmap! {
-                "__init__.py" => case.code,
-            },
-        )?;
+        let test_package = testpackage! {
+            "__init__.py" => case.code
+        };
 
         let imports = discover_imports(&test_package.path().join("__init__.py"))?;
 
@@ -366,14 +363,11 @@ else:
         },
     })]
     fn test_resolve_relative_imports(case: RelativeImportsTestCase<'_>) -> Result<()> {
-        let test_package = TestPackage::new(
-            "testpackage",
-            hashmap! {
+        let test_package = testpackage! {
                 "__init__.py" => "",
                 "bar.py" => "",
-                case.path => case.code,
-            },
-        )?;
+                case.path => case.code
+        };
 
         let imports = discover_imports(&test_package.path().join(case.path))?;
 

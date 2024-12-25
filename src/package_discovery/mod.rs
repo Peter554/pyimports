@@ -182,22 +182,19 @@ impl<'a> PackageInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutils::TestPackage;
+    use crate::testutils::{testpackage, TestPackage};
     use maplit::{hashmap, hashset};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_build() -> Result<()> {
-        let test_package = TestPackage::new(
-            "testpackage",
-            hashmap! {
-                "__init__.py" => "",
-                "main.py" => "",
-                "colors/__init__.py" => "",
-                "colors/red.py" => "",
-                "data.txt" => "",
-            },
-        )?;
+        let test_package = testpackage! {
+            "__init__.py" => "",
+            "main.py" => "",
+            "colors/__init__.py" => "",
+            "colors/red.py" => "",
+            "data.txt" => ""
+        };
 
         let package_info = PackageInfo::build(test_package.path())?;
 
