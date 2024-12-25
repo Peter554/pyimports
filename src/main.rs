@@ -8,13 +8,13 @@ fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let root_path: path::PathBuf = args[1].clone().into();
 
-    let package_info = timeit("Package discovery", || {
+    let _package_info = timeit("Package discovery", || {
         package_discovery::PackageInfo::build(&root_path)
     })?;
-    println!("{} items", package_info.get_all_items().count());
+    println!("{} items", _package_info.get_all_items().count());
 
-    let imports_info = timeit("Import discovery", || {
-        import_discovery::ImportsInfo::build(package_info.clone())
+    let _imports_info = timeit("Import discovery", || {
+        import_discovery::ImportsInfo::build(_package_info.clone())
     })?;
 
     Ok(())

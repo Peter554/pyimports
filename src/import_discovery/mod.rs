@@ -62,16 +62,13 @@ impl ImportsInfo {
                     {
                         // An imported module.
                         Some(item)
-                    } else if let Some(item) = package_info
-                        .get_item_by_pypath(&strip_final_part(&raw_import.pypath))
-                        .map(|item: crate::package_discovery::PackageItem<'_>| item.token())
-                    {
+                    } else {
                         // An imported module member.
                         // e.g. from testpackage.foo import FooClass
                         // The pypath is testpackage.foo.FooClass, so we need to strip the final part.
-                        Some(item)
-                    } else {
-                        None
+                        package_info
+                            .get_item_by_pypath(&strip_final_part(&raw_import.pypath))
+                            .map(|item: crate::package_discovery::PackageItem<'_>| item.token())
                     }
                 };
 
@@ -121,11 +118,9 @@ impl ImportsInfo {
 
     fn initialise_maps(&mut self) -> Result<()> {
         for item in self.package_info.get_all_items() {
-            self.internal_imports
-                .entry(item.token().into())
-                .or_default();
+            self.internal_imports.entry(item.token()).or_default();
             self.reverse_internal_imports
-                .entry(item.token().into())
+                .entry(item.token())
                 .or_default();
         }
         Ok(())
@@ -199,7 +194,7 @@ fn get_all_raw_imports(
 }
 
 fn strip_final_part(pypath: &str) -> String {
-    let mut o = pypath.split(".").into_iter().collect::<Vec<_>>();
+    let mut o = pypath.split(".").collect::<Vec<_>>();
     o.pop();
     o.join(".")
 }

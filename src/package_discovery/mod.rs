@@ -117,7 +117,7 @@ impl<'a> PackageItem<'a> {
     }
 }
 
-impl<'a> PackageInfo {
+impl PackageInfo {
     pub fn build(root_path: &Path) -> Result<PackageInfo> {
         let mut packages = SlotMap::with_key();
         let mut modules = SlotMap::with_key();
@@ -135,7 +135,6 @@ impl<'a> PackageInfo {
             .exclude_hidden_items()
             .filter_file_extension("py")
             .read(root_path)?
-            .into_iter()
             .skip(1); // Skip first item since this is the root, which we already have.
 
         for fs_item in fs_items {
@@ -183,7 +182,7 @@ impl<'a> PackageInfo {
 mod tests {
     use super::*;
     use crate::testutils::{testpackage, TestPackage};
-    use maplit::{hashmap, hashset};
+    use maplit::hashset;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -198,36 +197,27 @@ mod tests {
 
         let package_info = PackageInfo::build(test_package.path())?;
 
-        let root_package_token = package_info
-            .packages_by_pypath
-            .get("testpackage")
-            .unwrap()
-            .clone();
-        let root_package_init_token = package_info
+        let root_package_token = *package_info.packages_by_pypath.get("testpackage").unwrap();
+        let root_package_init_token = *package_info
             .modules_by_pypath
             .get("testpackage.__init__")
-            .unwrap()
-            .clone();
-        let main_token = package_info
+            .unwrap();
+        let main_token = *package_info
             .modules_by_pypath
             .get("testpackage.main")
-            .unwrap()
-            .clone();
-        let colors_package_token = package_info
+            .unwrap();
+        let colors_package_token = *package_info
             .packages_by_pypath
             .get("testpackage.colors")
-            .unwrap()
-            .clone();
-        let colors_package_init_token = package_info
+            .unwrap();
+        let colors_package_init_token = *package_info
             .modules_by_pypath
             .get("testpackage.colors.__init__")
-            .unwrap()
-            .clone();
-        let red_token = package_info
+            .unwrap();
+        let red_token = *package_info
             .modules_by_pypath
             .get("testpackage.colors.red")
-            .unwrap()
-            .clone();
+            .unwrap();
 
         let root_package = package_info.packages.get(root_package_token).unwrap();
         assert_eq!(root_package.parent, None);

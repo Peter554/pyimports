@@ -1,4 +1,3 @@
-use anyhow::Result;
 use std::path::Path;
 
 use crate::package_discovery::{
@@ -115,12 +114,12 @@ impl PackageInfo {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
     use crate::testutils::{testpackage, TestPackage};
-    use maplit::{hashmap, hashset};
+    use anyhow::Result;
+    use maplit::hashset;
     use pretty_assertions::assert_eq;
+    use std::collections::HashSet;
 
     impl Package {
         fn _unit_test_string(&self) -> String {

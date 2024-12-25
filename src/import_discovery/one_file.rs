@@ -1,9 +1,5 @@
 use anyhow::Result;
-use rustpython_parser::{
-    self,
-    ast::{Mod, Stmt},
-    source_code::LinearLocator,
-};
+use rustpython_parser::{self, ast::Stmt, source_code::LinearLocator};
 use std::{fs, path::Path};
 
 use crate::utils::path_to_pypath;
@@ -160,7 +156,7 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
 mod tests {
     use super::*;
     use crate::testutils::{testpackage, TestPackage};
-    use maplit::hashmap;
+
     use parameterized::parameterized;
     use std::collections::HashSet;
 
