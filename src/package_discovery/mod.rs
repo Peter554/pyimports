@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::utils::path_to_pypath;
+use crate::{package_queries::PackageQueries, utils::path_to_pypath};
 
 new_key_type! { pub struct PackageToken; }
 new_key_type! { pub struct ModuleToken; }
@@ -42,10 +42,6 @@ impl Package {
             path: path.to_path_buf(),
         }
     }
-
-    fn _unit_test_string(&self) -> String {
-        format!("package:{}", self.pypath)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -74,21 +70,17 @@ impl Module {
             is_init: path.file_name().unwrap().to_str().unwrap() == "__init__.py",
         }
     }
-
-    fn _unit_test_string(&self) -> String {
-        format!("module:{}", self.pypath)
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct PackageInfo {
-    root: PackageToken,
-    packages: SlotMap<PackageToken, Package>,
-    modules: SlotMap<ModuleToken, Module>,
-    packages_by_path: HashMap<PathBuf, PackageToken>,
-    packages_by_pypath: HashMap<String, PackageToken>,
-    modules_by_path: HashMap<PathBuf, ModuleToken>,
-    modules_by_pypath: HashMap<String, ModuleToken>,
+    pub(crate) root: PackageToken,
+    pub(crate) packages: SlotMap<PackageToken, Package>,
+    pub(crate) modules: SlotMap<ModuleToken, Module>,
+    pub(crate) packages_by_path: HashMap<PathBuf, PackageToken>,
+    pub(crate) packages_by_pypath: HashMap<String, PackageToken>,
+    pub(crate) modules_by_path: HashMap<PathBuf, ModuleToken>,
+    pub(crate) modules_by_pypath: HashMap<String, ModuleToken>,
 }
 
 #[derive(Debug, Clone)]
@@ -185,110 +177,8 @@ impl<'a> PackageInfo {
         })
     }
 
-    pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
-        if let Some(package) = self.packages_by_path.get(path) {
-            self.get_package(*package).map(PackageItem::Package)
-        } else if let Some(module) = self.modules_by_path.get(path) {
-            self.get_module(*module).map(PackageItem::Module)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_item_by_pypath(&self, pypath: &str) -> Option<PackageItem> {
-        if let Some(package) = self.packages_by_pypath.get(pypath) {
-            self.get_package(*package).map(PackageItem::Package)
-        } else if let Some(module) = self.modules_by_pypath.get(pypath) {
-            self.get_module(*module).map(PackageItem::Module)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_item(&self, token: PackageItemToken) -> Option<PackageItem> {
-        match token {
-            PackageItemToken::Package(token) => self.get_package(token).map(PackageItem::Package),
-            PackageItemToken::Module(token) => self.get_module(token).map(PackageItem::Module),
-        }
-    }
-
-    pub fn get_package(&self, token: PackageToken) -> Option<&Package> {
-        self.packages.get(token)
-    }
-
-    pub fn get_module(&self, token: ModuleToken) -> Option<&Module> {
-        self.modules.get(token)
-    }
-
-    pub fn get_root(&self) -> &Package {
-        self.get_package(self.root).unwrap()
-    }
-
-    pub fn get_child_items(
-        &'a self,
-        token: PackageToken,
-    ) -> Option<impl Iterator<Item = PackageItem<'a>>> {
-        match self.get_package(token) {
-            Some(package) => {
-                let child_packages_iter = package
-                    .packages
-                    .iter()
-                    .filter_map(|p| self.get_package(*p))
-                    .map(PackageItem::Package);
-                let child_modules_iter = package
-                    .modules
-                    .iter()
-                    .filter_map(|m| self.get_module(*m))
-                    .map(PackageItem::Module);
-                let v = child_packages_iter
-                    .chain(child_modules_iter)
-                    .collect::<Vec<_>>();
-                Some(v.into_iter())
-            }
-            None => None,
-        }
-    }
-
-    pub fn get_descendant_items(
-        &'a self,
-        token: PackageToken,
-    ) -> Option<impl Iterator<Item = PackageItem<'a>>> {
-        match self.get_child_items(token) {
-            Some(children) => {
-                let iter = children.chain(
-                    self.get_child_items(token)
-                        .unwrap()
-                        .filter_map(filter_packages)
-                        .flat_map(|child_package| {
-                            self.get_descendant_items(child_package.token).unwrap()
-                        }),
-                );
-                let v = iter.collect::<Vec<_>>();
-                Some(v.into_iter())
-            }
-            None => None,
-        }
-    }
-
-    pub fn get_all_items(&'a self) -> impl Iterator<Item = PackageItem<'a>> {
-        let iter = std::iter::once(PackageItem::Package(self.get_root()))
-            .chain(self.get_descendant_items(self.root).unwrap());
-        let v = iter.collect::<Vec<_>>();
-        v.into_iter()
-    }
-}
-
-pub fn filter_packages(item: PackageItem<'_>) -> Option<&Package> {
-    match item {
-        PackageItem::Package(package) => Some(package),
-        _ => None,
-    }
-}
-
-pub fn filter_modules(item: PackageItem<'_>) -> Option<&Module> {
-    match item {
-        PackageItem::Module(module) => Some(module),
-        _ => None,
+    pub fn queries(&self) -> PackageQueries {
+        PackageQueries::new(self)
     }
 }
 
@@ -299,7 +189,8 @@ mod tests {
     use maplit::{hashmap, hashset};
     use pretty_assertions::assert_eq;
 
-    fn create_test_package() -> Result<TestPackage> {
+    #[test]
+    fn test_build() -> Result<()> {
         let test_package = TestPackage::new(
             "testpackage",
             hashmap! {
@@ -307,121 +198,68 @@ mod tests {
                 "main.py" => "",
                 "colors/__init__.py" => "",
                 "colors/red.py" => "",
-                "food/__init__.py" => "",
-                "food/pizza.py" => "",
-                "food/fruit/__init__.py" => "",
-                "food/fruit/apple.py" => "",
                 "data.txt" => "",
             },
         )?;
-        Ok(test_package)
-    }
 
-    #[test]
-    fn test_build() -> Result<()> {
-        let test_package = create_test_package()?;
-        PackageInfo::build(test_package.path())?;
-        Ok(())
-    }
-
-    #[test]
-    fn test_get_child_items() -> Result<()> {
-        let test_package = create_test_package()?;
         let package_info = PackageInfo::build(test_package.path())?;
 
+        let root_package_token = package_info
+            .packages_by_pypath
+            .get("testpackage")
+            .unwrap()
+            .clone();
+        let root_package_init_token = package_info
+            .modules_by_pypath
+            .get("testpackage.__init__")
+            .unwrap()
+            .clone();
+        let main_token = package_info
+            .modules_by_pypath
+            .get("testpackage.main")
+            .unwrap()
+            .clone();
+        let colors_package_token = package_info
+            .packages_by_pypath
+            .get("testpackage.colors")
+            .unwrap()
+            .clone();
+        let colors_package_init_token = package_info
+            .modules_by_pypath
+            .get("testpackage.colors.__init__")
+            .unwrap()
+            .clone();
+        let red_token = package_info
+            .modules_by_pypath
+            .get("testpackage.colors.red")
+            .unwrap()
+            .clone();
+
+        let root_package = package_info.packages.get(root_package_token).unwrap();
+        assert_eq!(root_package.parent, None);
+        assert_eq!(root_package.init_module, Some(root_package_init_token));
         assert_eq!(
-            package_info
-                .get_child_items(package_info.root)
-                .unwrap()
-                .map(|item| {
-                    match item {
-                        PackageItem::Package(p) => p._unit_test_string(),
-                        PackageItem::Module(m) => m._unit_test_string(),
-                    }
-                })
-                .collect::<HashSet<_>>(),
-            hashset! {
-                "module:testpackage.__init__".into(),
-                "module:testpackage.main".into(),
-                "package:testpackage.colors".into(),
-                "package:testpackage.food".into(),
-            }
+            root_package.modules,
+            hashset! {root_package_init_token, main_token}
         );
+        assert_eq!(root_package.packages, hashset! {colors_package_token});
 
-        Ok(())
-    }
-
-    #[test]
-    fn test_get_descendant_items() -> Result<()> {
-        let test_package = create_test_package()?;
-        let package_info = PackageInfo::build(test_package.path())?;
-
+        let colors_package = package_info.packages.get(colors_package_token).unwrap();
+        assert_eq!(colors_package.parent, Some(root_package_token));
+        assert_eq!(colors_package.init_module, Some(colors_package_init_token));
         assert_eq!(
-            package_info
-                .get_descendant_items(package_info.root)
-                .unwrap()
-                .map(|item| {
-                    match item {
-                        PackageItem::Package(p) => p._unit_test_string(),
-                        PackageItem::Module(m) => m._unit_test_string(),
-                    }
-                })
-                .collect::<HashSet<_>>(),
-            hashset! {
-                "module:testpackage.__init__".into(),
-                "module:testpackage.main".into(),
-                //
-                "package:testpackage.colors".into(),
-                "module:testpackage.colors.__init__".into(),
-                "module:testpackage.colors.red".into(),
-                //
-                "package:testpackage.food".into(),
-                "module:testpackage.food.__init__".into(),
-                "module:testpackage.food.pizza".into(),
-                //
-                "package:testpackage.food.fruit".into(),
-                "module:testpackage.food.fruit.__init__".into(),
-                "module:testpackage.food.fruit.apple".into(),
-            }
+            colors_package.modules,
+            hashset! {colors_package_init_token, red_token}
         );
+        assert_eq!(colors_package.packages, hashset! {});
 
-        Ok(())
-    }
+        let root_package_init = package_info.modules.get(root_package_init_token).unwrap();
+        assert_eq!(root_package_init.is_init, true);
+        assert_eq!(root_package_init.parent, root_package_token);
 
-    #[test]
-    fn test_get_all_items() -> Result<()> {
-        let test_package = create_test_package()?;
-        let package_info = PackageInfo::build(test_package.path())?;
-
-        assert_eq!(
-            package_info
-                .get_all_items()
-                .map(|item| {
-                    match item {
-                        PackageItem::Package(p) => p._unit_test_string(),
-                        PackageItem::Module(m) => m._unit_test_string(),
-                    }
-                })
-                .collect::<HashSet<_>>(),
-            hashset! {
-                "package:testpackage".into(),
-                //
-                "module:testpackage.__init__".into(),
-                "module:testpackage.main".into(),
-                //
-                "package:testpackage.colors".into(),
-                "module:testpackage.colors.__init__".into(),
-                "module:testpackage.colors.red".into(),
-                //
-                "package:testpackage.food".into(),
-                "module:testpackage.food.__init__".into(),
-                "module:testpackage.food.pizza".into(),
-                //
-                "package:testpackage.food.fruit".into(),
-                "module:testpackage.food.fruit.__init__".into(),
-                "module:testpackage.food.fruit.apple".into(),
-            }
-        );
+        let main = package_info.modules.get(main_token).unwrap();
+        assert_eq!(main.is_init, false);
+        assert_eq!(main.parent, root_package_token);
 
         Ok(())
     }

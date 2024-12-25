@@ -119,6 +119,7 @@ mod tests {
     use super::*;
     use crate::testutils::TestPackage;
     use maplit::{hashmap, hashset};
+    use pretty_assertions::assert_eq;
     use std::collections::HashSet;
 
     fn create_test_package() -> Result<TestPackage> {

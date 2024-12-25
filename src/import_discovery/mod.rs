@@ -10,7 +10,10 @@ use std::{
     path::Path,
 };
 
-use crate::package_discovery::{filter_modules, filter_packages, PackageInfo, PackageItemToken};
+use crate::{
+    package_discovery::{PackageInfo, PackageItemToken},
+    package_queries::PackageQueries,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportMetadata {
@@ -53,7 +56,11 @@ impl ImportsInfo {
         imports_info.initialise_maps()?;
 
         // By definition, packages import their init modules.
-        for package in package_info.get_all_items().filter_map(filter_packages) {
+        for package in package_info
+            .queries()
+            .get_all_items()
+            .filter_map(PackageQueries::filter_packages)
+        {
             if let Some(init_module) = package.init_module {
                 imports_info.add_internal_import(package.token.into(), init_module.into(), None)?;
             }
@@ -68,11 +75,17 @@ impl ImportsInfo {
 
                 // Try to find an internal import.
                 let internal_item = {
-                    if let Some(item) = package_info.get_item_by_pypath(&raw_import.pypath) {
+                    if let Some(item) = package_info
+                        .queries()
+                        .get_item_by_pypath(&raw_import.pypath)
+                        .map(|item: crate::package_discovery::PackageItem<'_>| item.token())
+                    {
                         // An imported module.
                         Some(item)
-                    } else if let Some(item) =
-                        package_info.get_item_by_pypath(&strip_final_part(&raw_import.pypath))
+                    } else if let Some(item) = package_info
+                        .queries()
+                        .get_item_by_pypath(&strip_final_part(&raw_import.pypath))
+                        .map(|item: crate::package_discovery::PackageItem<'_>| item.token())
                     {
                         // An imported module member.
                         // e.g. from testpackage.foo import FooClass
@@ -85,11 +98,7 @@ impl ImportsInfo {
 
                 match internal_item {
                     Some(internal_item) => {
-                        imports_info.add_internal_import(
-                            item,
-                            internal_item.token(),
-                            Some(metadata),
-                        )?;
+                        imports_info.add_internal_import(item, internal_item, Some(metadata))?;
                     }
                     None => {
                         imports_info.add_external_import(
@@ -106,7 +115,7 @@ impl ImportsInfo {
     }
 
     fn initialise_maps(&mut self) -> Result<()> {
-        for item in self.package_info.get_all_items() {
+        for item in self.package_info.queries().get_all_items() {
             self.internal_imports
                 .entry(item.token().into())
                 .or_default();
@@ -162,8 +171,9 @@ fn get_all_raw_imports(
     package_info: &PackageInfo,
 ) -> Result<HashMap<PackageItemToken, Vec<RawImport>>> {
     let all_raw_imports = package_info
+        .queries()
         .get_all_items()
-        .filter_map(filter_modules)
+        .filter_map(PackageQueries::filter_modules)
         .par_bridge()
         .try_fold(
             HashMap::new,
@@ -174,7 +184,7 @@ fn get_all_raw_imports(
                 let raw_imports = one_file::resolve_relative_imports(
                     &module.path,
                     raw_imports,
-                    &package_info.get_root().path,
+                    &package_info.queries().get_root().path,
                 )?;
 
                 hm.entry(module.token.into())
@@ -228,21 +238,25 @@ from django.db import models
 
         let root_package = imports_info
             .package_info
+            .queries()
             .get_item_by_pypath("testpackage")
             .unwrap()
             .token();
         let root_package_init = imports_info
             .package_info
+            .queries()
             .get_item_by_pypath("testpackage.__init__")
             .unwrap()
             .token();
         let a = imports_info
             .package_info
+            .queries()
             .get_item_by_pypath("testpackage.a")
             .unwrap()
             .token();
         let b = imports_info
             .package_info
+            .queries()
             .get_item_by_pypath("testpackage.b")
             .unwrap()
             .token();
