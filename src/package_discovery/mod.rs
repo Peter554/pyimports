@@ -1,4 +1,5 @@
 mod filesystem;
+mod queries;
 
 use anyhow::Result;
 use slotmap::{new_key_type, SlotMap};
@@ -7,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{package_queries::PackageQueries, utils::path_to_pypath};
+use crate::utils::path_to_pypath;
 
 new_key_type! { pub struct PackageToken; }
 new_key_type! { pub struct ModuleToken; }
@@ -175,10 +176,6 @@ impl<'a> PackageInfo {
             modules_by_path,
             modules_by_pypath,
         })
-    }
-
-    pub fn queries(&self) -> PackageQueries {
-        PackageQueries::new(self)
     }
 }
 

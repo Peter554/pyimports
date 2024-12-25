@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     let package_info = timeit("Package discovery", || {
         package_discovery::PackageInfo::build(&root_path)
     })?;
-    println!("{} items", package_info.queries().get_all_items().count());
+    println!("{} items", package_info.get_all_items().count());
 
     let imports_info = timeit("Import discovery", || {
         import_discovery::ImportsInfo::build(package_info.clone())

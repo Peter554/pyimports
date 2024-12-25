@@ -5,19 +5,11 @@ use crate::package_discovery::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
 
-pub struct PackageQueries<'a> {
-    p: &'a PackageInfo,
-}
-
-impl<'a> PackageQueries<'a> {
-    pub fn new(package_info: &'a PackageInfo) -> Self {
-        PackageQueries { p: package_info }
-    }
-
+impl PackageInfo {
     pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
-        if let Some(package) = self.p.packages_by_path.get(path) {
+        if let Some(package) = self.packages_by_path.get(path) {
             self.get_package(*package).map(PackageItem::Package)
-        } else if let Some(module) = self.p.modules_by_path.get(path) {
+        } else if let Some(module) = self.modules_by_path.get(path) {
             self.get_module(*module).map(PackageItem::Module)
         } else {
             None
@@ -25,9 +17,9 @@ impl<'a> PackageQueries<'a> {
     }
 
     pub fn get_item_by_pypath(&self, pypath: &str) -> Option<PackageItem> {
-        if let Some(package) = self.p.packages_by_pypath.get(pypath) {
+        if let Some(package) = self.packages_by_pypath.get(pypath) {
             self.get_package(*package).map(PackageItem::Package)
-        } else if let Some(module) = self.p.modules_by_pypath.get(pypath) {
+        } else if let Some(module) = self.modules_by_pypath.get(pypath) {
             self.get_module(*module).map(PackageItem::Module)
         } else {
             None
@@ -42,21 +34,21 @@ impl<'a> PackageQueries<'a> {
     }
 
     pub fn get_package(&self, token: PackageToken) -> Option<&Package> {
-        self.p.packages.get(token)
+        self.packages.get(token)
     }
 
     pub fn get_module(&self, token: ModuleToken) -> Option<&Module> {
-        self.p.modules.get(token)
+        self.modules.get(token)
     }
 
     pub fn get_root(&self) -> &Package {
-        self.get_package(self.p.root).unwrap()
+        self.get_package(self.root).unwrap()
     }
 
     pub fn get_child_items(
-        &'a self,
+        &self,
         token: PackageToken,
-    ) -> Option<impl Iterator<Item = PackageItem<'a>>> {
+    ) -> Option<impl Iterator<Item = PackageItem>> {
         match self.get_package(token) {
             Some(package) => {
                 let child_packages_iter = package
@@ -79,15 +71,15 @@ impl<'a> PackageQueries<'a> {
     }
 
     pub fn get_descendant_items(
-        &'a self,
+        &self,
         token: PackageToken,
-    ) -> Option<impl Iterator<Item = PackageItem<'a>>> {
+    ) -> Option<impl Iterator<Item = PackageItem>> {
         match self.get_child_items(token) {
             Some(children) => {
                 let iter = children.chain(
                     self.get_child_items(token)
                         .unwrap()
-                        .filter_map(PackageQueries::filter_packages)
+                        .filter_map(PackageInfo::filter_packages)
                         .flat_map(|child_package| {
                             self.get_descendant_items(child_package.token).unwrap()
                         }),
@@ -99,9 +91,9 @@ impl<'a> PackageQueries<'a> {
         }
     }
 
-    pub fn get_all_items(&'a self) -> impl Iterator<Item = PackageItem<'a>> {
+    pub fn get_all_items(&self) -> impl Iterator<Item = PackageItem> {
         let iter = std::iter::once(PackageItem::Package(self.get_root()))
-            .chain(self.get_descendant_items(self.p.root).unwrap());
+            .chain(self.get_descendant_items(self.root).unwrap());
         let v = iter.collect::<Vec<_>>();
         v.into_iter()
     }
@@ -164,11 +156,10 @@ mod tests {
     fn test_get_child_items() -> Result<()> {
         let test_package = create_test_package()?;
         let package_info = PackageInfo::build(test_package.path())?;
-        let package_queries = package_info.queries();
 
         assert_eq!(
-            package_queries
-                .get_child_items(package_queries.get_root().token)
+            package_info
+                .get_child_items(package_info.get_root().token)
                 .unwrap()
                 .map(|item| {
                     match item {
@@ -192,11 +183,10 @@ mod tests {
     fn test_get_descendant_items() -> Result<()> {
         let test_package = create_test_package()?;
         let package_info = PackageInfo::build(test_package.path())?;
-        let package_queries = package_info.queries();
 
         assert_eq!(
-            package_queries
-                .get_descendant_items(package_queries.get_root().token)
+            package_info
+                .get_descendant_items(package_info.get_root().token)
                 .unwrap()
                 .map(|item| {
                     match item {
@@ -230,10 +220,9 @@ mod tests {
     fn test_get_all_items() -> Result<()> {
         let test_package = create_test_package()?;
         let package_info = PackageInfo::build(test_package.path())?;
-        let package_queries = package_info.queries();
 
         assert_eq!(
-            package_queries
+            package_info
                 .get_all_items()
                 .map(|item| {
                     match item {
