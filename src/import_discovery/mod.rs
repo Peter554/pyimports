@@ -22,10 +22,6 @@ pub struct ImportsInfo {
     internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     internal_imports_metadata: HashMap<(PackageItemToken, PackageItemToken), ImportMetadata>,
-    //
-    external_imports: HashMap<PackageItemToken, HashSet<String>>,
-    reverse_external_imports: HashMap<String, HashSet<PackageItemToken>>,
-    external_imports_metadata: HashMap<(PackageItemToken, String), ImportMetadata>,
 }
 
 impl ImportsInfo {
@@ -37,9 +33,6 @@ impl ImportsInfo {
             internal_imports: HashMap::new(),
             reverse_internal_imports: HashMap::new(),
             internal_imports_metadata: HashMap::new(),
-            external_imports: HashMap::new(),
-            reverse_external_imports: HashMap::new(),
-            external_imports_metadata: HashMap::new(),
         };
 
         imports_info.initialise_maps()?;
@@ -87,11 +80,8 @@ impl ImportsInfo {
                         imports_info.add_internal_import(item, internal_item, Some(metadata))?;
                     }
                     None => {
-                        imports_info.add_external_import(
-                            item,
-                            raw_import.pypath,
-                            Some(metadata),
-                        )?;
+                        // Do not consider external imports, for now.
+                        // TODO: External imports?
                     }
                 }
             }
@@ -106,9 +96,6 @@ impl ImportsInfo {
                 .entry(item.token().into())
                 .or_default();
             self.reverse_internal_imports
-                .entry(item.token().into())
-                .or_default();
-            self.external_imports
                 .entry(item.token().into())
                 .or_default();
         }
@@ -128,26 +115,6 @@ impl ImportsInfo {
             .insert(from);
         if let Some(metadata) = metadata {
             self.internal_imports_metadata.insert((from, to), metadata);
-        }
-        Ok(())
-    }
-
-    fn add_external_import(
-        &mut self,
-        from: PackageItemToken,
-        to: String,
-        metadata: Option<ImportMetadata>,
-    ) -> Result<()> {
-        self.external_imports
-            .entry(from)
-            .or_default()
-            .insert(to.clone());
-        self.reverse_external_imports
-            .entry(to.clone())
-            .or_default()
-            .insert(from);
-        if let Some(metadata) = metadata {
-            self.external_imports_metadata.insert((from, to), metadata);
         }
         Ok(())
     }
@@ -274,33 +241,6 @@ from django.db import models
                     is_typechecking: false,
                 },
                 (a, b) => ImportMetadata{
-                    line_number: 2,
-                    is_typechecking: false,
-                }
-            }
-        );
-
-        assert_eq!(
-            imports_info.external_imports,
-            hashmap! {
-                root_package => hashset! {},
-                root_package_init => hashset! {},
-                a => hashset! {},
-                b => hashset!{"django.db.models".into()},
-            }
-        );
-
-        assert_eq!(
-            imports_info.reverse_external_imports,
-            hashmap! {
-            "django.db.models".into() => hashset! {b}
-            }
-        );
-
-        assert_eq!(
-            imports_info.external_imports_metadata,
-            hashmap! {
-                (b, "django.db.models".into()) => ImportMetadata{
                     line_number: 2,
                     is_typechecking: false,
                 }
