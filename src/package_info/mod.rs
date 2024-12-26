@@ -143,6 +143,28 @@ impl TryFrom<PackageItemToken> for ModuleToken {
     }
 }
 
+impl<'a> TryFrom<PackageItem<'a>> for &'a Package {
+    type Error = Error;
+
+    fn try_from(value: PackageItem<'a>) -> std::result::Result<Self, Self::Error> {
+        match value {
+            PackageItem::Package(package) => Ok(package),
+            PackageItem::Module(_) => Err(Error::NotAPackage),
+        }
+    }
+}
+
+impl<'a> TryFrom<PackageItem<'a>> for &'a Module {
+    type Error = Error;
+
+    fn try_from(value: PackageItem<'a>) -> std::result::Result<Self, Self::Error> {
+        match value {
+            PackageItem::Package(_) => Err(Error::NotAModule),
+            PackageItem::Module(module) => Ok(module),
+        }
+    }
+}
+
 impl<'a> PackageItem<'a> {
     pub fn token(&'a self) -> PackageItemToken {
         match self {
