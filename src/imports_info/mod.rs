@@ -1,9 +1,8 @@
-mod ast_visit;
-mod one_file;
+mod parse;
 mod queries;
 
 use anyhow::Result;
-use one_file::RawImport;
+use parse::RawImport;
 use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -175,9 +174,9 @@ fn get_all_raw_imports(
             HashMap::new,
             |mut hm: HashMap<PackageItemToken, Vec<RawImport>>, module| -> Result<_> {
                 // Parse the raw imports.
-                let raw_imports = one_file::discover_imports(&module.path)?;
+                let raw_imports = parse::parse_imports(&module.path)?;
                 // Resolve any relative imports.
-                let raw_imports = one_file::resolve_relative_imports(
+                let raw_imports = parse::resolve_relative_imports(
                     &module.path,
                     raw_imports,
                     &package_info.get_root().path,

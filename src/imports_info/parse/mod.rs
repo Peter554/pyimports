@@ -1,9 +1,11 @@
+mod ast_visit;
+
 use anyhow::Result;
 use rustpython_parser::{self, ast::Stmt, source_code::LinearLocator};
 use std::{fs, path::Path};
 
+use crate::errors::Error;
 use crate::utils::path_to_pypath;
-use crate::{errors::Error, imports_info::ast_visit};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RawImport {
@@ -12,7 +14,7 @@ pub struct RawImport {
     pub is_typechecking: bool,
 }
 
-pub fn discover_imports(path: &Path) -> Result<Vec<RawImport>> {
+pub fn parse_imports(path: &Path) -> Result<Vec<RawImport>> {
     let code = fs::read_to_string(path)?;
 
     let ast = match rustpython_parser::parse(
@@ -304,12 +306,12 @@ else:
             ]
         },
     })]
-    fn test_discover_imports(case: TestCase) -> Result<()> {
+    fn test_parse_imports(case: TestCase) -> Result<()> {
         let test_package = testpackage! {
             "__init__.py" => case.code
         };
 
-        let imports = discover_imports(&test_package.path().join("__init__.py"))?;
+        let imports = parse_imports(&test_package.path().join("__init__.py"))?;
 
         let imports = imports.into_iter().collect::<Vec<_>>();
 
@@ -365,7 +367,7 @@ else:
                 case.path => case.code
         };
 
-        let imports = discover_imports(&test_package.path().join(case.path))?;
+        let imports = parse_imports(&test_package.path().join(case.path))?;
 
         let imports = resolve_relative_imports(
             &test_package.path().join(case.path),
