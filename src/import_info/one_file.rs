@@ -3,7 +3,7 @@ use rustpython_parser::{self, ast::Stmt, source_code::LinearLocator};
 use std::{fs, path::Path};
 
 use crate::utils::path_to_pypath;
-use crate::{errors::Error, import_discovery::ast_visit};
+use crate::{errors::Error, import_info::ast_visit};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RawImport {

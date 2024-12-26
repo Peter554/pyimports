@@ -7,7 +7,7 @@ use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-use crate::package_discovery::{PackageInfo, PackageItemToken};
+use crate::package_info::{PackageInfo, PackageItemToken};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportMetadata {
@@ -58,7 +58,7 @@ impl ImportsInfo {
                 let internal_item = {
                     if let Some(item) = package_info
                         .get_item_by_pypath(&raw_import.pypath)
-                        .map(|item: crate::package_discovery::PackageItem<'_>| item.token())
+                        .map(|item: crate::package_info::PackageItem<'_>| item.token())
                     {
                         // An imported module.
                         Some(item)
@@ -68,7 +68,7 @@ impl ImportsInfo {
                         // The pypath is testpackage.foo.FooClass, so we need to strip the final part.
                         package_info
                             .get_item_by_pypath(&strip_final_part(&raw_import.pypath))
-                            .map(|item: crate::package_discovery::PackageItem<'_>| item.token())
+                            .map(|item: crate::package_info::PackageItem<'_>| item.token())
                     }
                 };
 

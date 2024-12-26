@@ -2,19 +2,17 @@ use anyhow::Result;
 use std::time;
 use std::{env, path};
 
-use pyimports::{import_discovery, package_discovery};
-
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let root_path: path::PathBuf = args[1].clone().into();
 
     let _package_info = timeit("Package discovery", || {
-        package_discovery::PackageInfo::build(&root_path)
+        pyimports::PackageInfo::build(&root_path)
     })?;
     println!("{} items", _package_info.get_all_items().count());
 
     let _imports_info = timeit("Import discovery", || {
-        import_discovery::ImportsInfo::build(_package_info.clone())
+        pyimports::ImportsInfo::build(_package_info.clone())
     })?;
 
     Ok(())

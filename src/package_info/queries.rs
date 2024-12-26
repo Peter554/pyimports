@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::package_discovery::{
+use crate::package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
 
