@@ -1,3 +1,8 @@
+//! A collection of testing utilities.
+//!
+//! Should really be `#[cfg(test)]`, but then usage within doctests
+//! doesn't seem to work. Related [GH issue](https://github.com/rust-lang/rust/issues/67295).
+
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs;
@@ -41,10 +46,6 @@ impl TestPackage {
     }
 }
 
-/// A utility to create a test package.
-///
-/// This should probably be behind a `#[cfg(test)]`, but the use within
-/// doctests seems to prevents this.
 #[macro_export]
 macro_rules! testpackage {
     ($($k:expr => $v:expr),*) => {{
