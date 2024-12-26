@@ -1,5 +1,6 @@
 mod ast_visit;
-pub mod one_file;
+mod one_file;
+mod queries;
 
 use anyhow::Result;
 use one_file::RawImport;
@@ -7,6 +8,7 @@ use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
+pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
 use crate::package_info::{PackageInfo, PackageItemToken};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,6 +91,10 @@ impl ImportsInfo {
 
     pub fn package_info(&self) -> &PackageInfo {
         &self.package_info
+    }
+
+    pub fn internal_imports(&self) -> InternalImportsQueries {
+        InternalImportsQueries { imports_info: self }
     }
 
     pub fn exclude_imports(

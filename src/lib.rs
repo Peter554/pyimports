@@ -1,5 +1,5 @@
 mod errors;
-mod import_info;
+mod imports_info;
 mod package_info;
 mod utils;
 
@@ -7,7 +7,7 @@ mod utils;
 mod testutils;
 
 pub use errors::Error;
-pub use import_info::{ImportMetadata, ImportsInfo};
+pub use imports_info::{ImportMetadata, ImportsInfo, InternalImportsQueries};
 pub use package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
