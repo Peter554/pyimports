@@ -1,8 +1,19 @@
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
+
+use maplit::hashset;
 
 use crate::package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
+
+#[derive(Debug)]
+pub(crate) struct PackageContents {
+    pub root: PackageItemToken,
+    pub descendant_packages: HashSet<PackageItemToken>,
+    pub descendant_modules: HashSet<PackageItemToken>,
+    pub descendant_items: HashSet<PackageItemToken>,
+    pub all_items: HashSet<PackageItemToken>,
+}
 
 impl PackageInfo {
     pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
@@ -108,6 +119,33 @@ impl PackageInfo {
         match item {
             PackageItem::Module(module) => Some(module),
             _ => None,
+        }
+    }
+
+    pub(crate) fn get_package_contents(&self, package: PackageToken) -> PackageContents {
+        let descendant_packages = self
+            .get_descendant_items(package)
+            .unwrap()
+            .filter_map(PackageInfo::filter_packages)
+            .map(|o| o.token.into())
+            .collect::<HashSet<_>>();
+
+        let descendant_modules = self
+            .get_descendant_items(package)
+            .unwrap()
+            .filter_map(PackageInfo::filter_modules)
+            .map(|o| o.token.into())
+            .collect::<HashSet<_>>();
+
+        let descendant_items = &descendant_packages | &descendant_modules;
+        let all_items = &hashset! {package.into()} | &descendant_items;
+
+        PackageContents {
+            root: package.into(),
+            descendant_packages,
+            descendant_modules,
+            descendant_items,
+            all_items,
         }
     }
 }

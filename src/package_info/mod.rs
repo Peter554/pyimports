@@ -5,6 +5,7 @@ use anyhow::Result;
 use slotmap::{new_key_type, SlotMap};
 use std::{
     collections::{HashMap, HashSet},
+    ops::Sub,
     path::{Path, PathBuf},
 };
 
