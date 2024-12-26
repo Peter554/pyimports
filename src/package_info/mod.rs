@@ -9,6 +9,7 @@ use std::{
 };
 
 use crate::utils::path_to_pypath;
+use crate::Error;
 
 new_key_type! { pub struct PackageToken; }
 new_key_type! { pub struct ModuleToken; }
@@ -105,6 +106,40 @@ impl From<PackageToken> for PackageItemToken {
 impl From<ModuleToken> for PackageItemToken {
     fn from(value: ModuleToken) -> Self {
         PackageItemToken::Module(value)
+    }
+}
+
+impl<'a> From<&'a Package> for PackageItem<'a> {
+    fn from(value: &'a Package) -> Self {
+        PackageItem::Package(value)
+    }
+}
+
+impl<'a> From<&'a Module> for PackageItem<'a> {
+    fn from(value: &'a Module) -> Self {
+        PackageItem::Module(value)
+    }
+}
+
+impl TryFrom<PackageItemToken> for PackageToken {
+    type Error = Error;
+
+    fn try_from(value: PackageItemToken) -> std::result::Result<Self, Self::Error> {
+        match value {
+            PackageItemToken::Package(token) => Ok(token),
+            PackageItemToken::Module(_) => Err(Error::NotAPackage),
+        }
+    }
+}
+
+impl TryFrom<PackageItemToken> for ModuleToken {
+    type Error = Error;
+
+    fn try_from(value: PackageItemToken) -> std::result::Result<Self, Self::Error> {
+        match value {
+            PackageItemToken::Package(_) => Err(Error::NotAModule),
+            PackageItemToken::Module(token) => Ok(token),
+        }
     }
 }
 

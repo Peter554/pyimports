@@ -11,4 +11,10 @@ pub enum Error {
         #[source]
         parse_error: ParseError,
     },
+
+    #[error("not a package")]
+    NotAPackage,
+
+    #[error("not a module")]
+    NotAModule,
 }
