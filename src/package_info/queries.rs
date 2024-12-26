@@ -115,7 +115,7 @@ impl PackageInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutils::{testpackage, TestPackage};
+    use crate::{testpackage, testutils::TestPackage};
     use anyhow::Result;
     use maplit::hashset;
     use pretty_assertions::assert_eq;

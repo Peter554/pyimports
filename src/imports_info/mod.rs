@@ -208,7 +208,7 @@ fn strip_final_part(pypath: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutils::{testpackage, TestPackage};
+    use crate::{testpackage, testutils::TestPackage};
     use maplit::{hashmap, hashset};
     use pretty_assertions::assert_eq;
 

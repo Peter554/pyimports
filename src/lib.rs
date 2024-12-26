@@ -1,10 +1,13 @@
+#![doc = include_str!("../README.md")]
+
 mod errors;
 mod imports_info;
 mod package_info;
 mod utils;
 
-#[cfg(test)]
-mod testutils;
+// TODO: Use #[cfg(test)] here, but still need
+// a way to access the testutils from doctests.
+pub mod testutils;
 
 pub use errors::Error;
 pub use imports_info::{ImportMetadata, ImportsInfo, InternalImportsQueries};

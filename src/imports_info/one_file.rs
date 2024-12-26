@@ -155,7 +155,7 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutils::{testpackage, TestPackage};
+    use crate::{testpackage, testutils::TestPackage};
 
     use parameterized::parameterized;
     use std::collections::HashSet;

@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempdir::TempDir;
 
-pub(crate) struct TestPackage {
+pub struct TestPackage {
     // Need to move the TempDir into TestPackage to avoid it being dropped.
     _temp_dir: TempDir,
     dir_path: PathBuf,
@@ -41,6 +41,11 @@ impl TestPackage {
     }
 }
 
+/// A utility to create a test package.
+///
+/// This should probably be behind a `#[cfg(test)]`, but the use within
+/// doctests seems to prevents this.
+#[macro_export]
 macro_rules! testpackage {
     ($($k:expr => $v:expr),*) => {{
         let test_package = TestPackage::new("testpackage", std::collections::HashMap::new())?;
@@ -50,5 +55,3 @@ macro_rules! testpackage {
         test_package
     }};
 }
-
-pub(crate) use testpackage;
