@@ -9,7 +9,7 @@ Find the docs [here](https://docs.rs/pyimports/0.1.0/pyimports/).
 ```rust
 use anyhow::Result;
 
-use pyimports::{testpackage,testutils::TestPackage};
+use pyimports::{testpackage,TestPackage};
 use pyimports::{PackageInfo,ImportsInfo};
 
 fn main() -> Result<()> {

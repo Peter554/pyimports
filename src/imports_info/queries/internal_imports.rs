@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
+use pathfinding::prelude::bfs_reach;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{ImportsInfo, PackageItemToken};
@@ -36,6 +37,42 @@ impl<'a> InternalImportsQueries<'a> {
                 .unwrap()
                 .clone())
         })
+    }
+
+    pub fn get_downstream_items(
+        &'a self,
+        item: PackageItemToken,
+    ) -> Result<HashSet<PackageItemToken>> {
+        let mut items = self.get_items(item, |item| {
+            Ok(bfs_reach(item, |item| {
+                self.imports_info
+                    .internal_imports
+                    .get(&item)
+                    .unwrap()
+                    .clone()
+            })
+            .collect())
+        })?;
+        items.remove(&item);
+        Ok(items)
+    }
+
+    pub fn get_upstream_items(
+        &'a self,
+        item: PackageItemToken,
+    ) -> Result<HashSet<PackageItemToken>> {
+        let mut items = self.get_items(item, |item| {
+            Ok(bfs_reach(item, |item| {
+                self.imports_info
+                    .reverse_internal_imports
+                    .get(&item)
+                    .unwrap()
+                    .clone()
+            })
+            .collect())
+        })?;
+        items.remove(&item);
+        Ok(items)
     }
 
     fn get_items<F: Fn(PackageItemToken) -> Result<HashSet<PackageItemToken>> + Send + Sync>(
@@ -107,31 +144,11 @@ from . import red",
         let package_info = PackageInfo::build(testpackage.path())?;
         let imports_info = ImportsInfo::build(package_info)?;
 
-        let root_package = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage")
-            .unwrap()
-            .token();
-        let root_package_init = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.__init__")
-            .unwrap()
-            .token();
-        let fruit = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.fruit")
-            .unwrap()
-            .token();
-        let colors_package = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.colors")
-            .unwrap()
-            .token();
-        let red = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.colors.red")
-            .unwrap()
-            .token();
+        let root_package = imports_info._item("testpackage");
+        let root_package_init = imports_info._item("testpackage.__init__");
+        let fruit = imports_info._item("testpackage.fruit");
+        let colors_package = imports_info._item("testpackage.colors");
+        let red = imports_info._item("testpackage.colors.red");
 
         // A module
         let imports = imports_info
@@ -181,26 +198,10 @@ from testpackage import colors
         let package_info = PackageInfo::build(testpackage.path())?;
         let imports_info = ImportsInfo::build(package_info)?;
 
-        let root_package_init = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.__init__")
-            .unwrap()
-            .token();
-        let fruit = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.fruit")
-            .unwrap()
-            .token();
-        let colors_package = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.colors")
-            .unwrap()
-            .token();
-        let colors_package_init = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.colors.__init__")
-            .unwrap()
-            .token();
+        let root_package_init = imports_info._item("testpackage.__init__");
+        let fruit = imports_info._item("testpackage.fruit");
+        let colors_package = imports_info._item("testpackage.colors");
+        let colors_package_init = imports_info._item("testpackage.colors.__init__");
 
         // A module
         let imports = imports_info
@@ -215,6 +216,77 @@ from testpackage import colors
             .get_items_that_directly_import(colors_package)
             .unwrap();
         assert_eq!(imports, hashset! {root_package_init, fruit},);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_downstream_items() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "
+from testpackage import fruit
+",
+
+            "fruit.py" => "
+from testpackage import colors
+from testpackage import books",
+
+            "colors.py" => "",
+            "books.py" => ""
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let root_package_init = imports_info._item("testpackage.__init__");
+        let fruit = imports_info._item("testpackage.fruit");
+        let colors = imports_info._item("testpackage.colors");
+        let books = imports_info._item("testpackage.books");
+
+        let imports = imports_info
+            .internal_imports()
+            .get_downstream_items(root_package_init)
+            .unwrap();
+        assert_eq!(imports, hashset! {fruit, colors, books},);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_upstream_items() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "
+from testpackage import fruit
+",
+
+            "fruit.py" => "
+from testpackage import colors
+from testpackage import books",
+
+            "colors.py" => "",
+            "books.py" => ""
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let root_package = imports_info._item("testpackage");
+        let root_package_init = imports_info._item("testpackage.__init__");
+        let fruit = imports_info._item("testpackage.fruit");
+        let colors = imports_info._item("testpackage.colors");
+        let books = imports_info._item("testpackage.books");
+
+        let imports = imports_info
+            .internal_imports()
+            .get_upstream_items(colors)
+            .unwrap();
+        assert_eq!(imports, hashset! {root_package,root_package_init, fruit},);
+
+        let imports = imports_info
+            .internal_imports()
+            .get_upstream_items(books)
+            .unwrap();
+        assert_eq!(imports, hashset! {root_package,root_package_init, fruit},);
 
         Ok(())
     }

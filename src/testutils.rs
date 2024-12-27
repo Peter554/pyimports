@@ -6,6 +6,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempdir::TempDir;
 
+use crate::{ImportsInfo, PackageInfo, PackageItemToken};
+
 pub struct TestPackage {
     // Need to move the TempDir into TestPackage to avoid it being dropped.
     _temp_dir: TempDir,
@@ -50,4 +52,16 @@ macro_rules! testpackage {
         )*
         test_package
     }};
+}
+
+impl PackageInfo {
+    pub(crate) fn _item(&self, pypath: &str) -> PackageItemToken {
+        self.get_item_by_pypath(pypath).unwrap().token()
+    }
+}
+
+impl ImportsInfo {
+    pub(crate) fn _item(&self, pypath: &str) -> PackageItemToken {
+        self.package_info()._item(pypath)
+    }
 }
