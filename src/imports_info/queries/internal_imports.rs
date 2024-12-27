@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use pathfinding::prelude::bfs_reach;
@@ -11,6 +11,27 @@ pub struct InternalImportsQueries<'a> {
 }
 
 impl<'a> InternalImportsQueries<'a> {
+    pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<PackageItemToken>> {
+        self.imports_info.internal_imports.clone()
+    }
+
+    pub fn direct_import_exists(
+        &self,
+        from: PackageItemToken,
+        to: PackageItemToken,
+    ) -> Result<bool> {
+        self.imports_info.package_info.get_item(from)?;
+        self.imports_info.package_info.get_item(to)?;
+
+        match self.imports_info.internal_imports.get(&from) {
+            Some(imports) => match imports.get(&to) {
+                Some(_) => Ok(true),
+                None => Ok(false),
+            },
+            None => Ok(false),
+        }
+    }
+
     pub fn get_items_directly_imported_by(
         &'a self,
         item: PackageItemToken,
@@ -41,23 +62,6 @@ impl<'a> InternalImportsQueries<'a> {
                 .unwrap()
                 .clone())
         })
-    }
-
-    pub fn direct_import_exists(
-        &self,
-        from: PackageItemToken,
-        to: PackageItemToken,
-    ) -> Result<bool> {
-        self.imports_info.package_info.get_item(from)?;
-        self.imports_info.package_info.get_item(to)?;
-
-        match self.imports_info.internal_imports.get(&from) {
-            Some(imports) => match imports.get(&to) {
-                Some(_) => Ok(true),
-                None => Ok(false),
-            },
-            None => Ok(false),
-        }
     }
 
     pub fn get_downstream_items(
@@ -161,11 +165,43 @@ impl<'a> InternalImportsQueries<'a> {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use maplit::hashset;
+    use maplit::{hashmap, hashset};
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::{testpackage, testutils::TestPackage, Error, PackageInfo};
+
+    #[test]
+    fn test_get_direct_imports() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "
+import testpackage.fruit
+from testpackage import colors
+",
+            "fruit.py" => "",
+            "colors.py" => ""
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let root_package = imports_info._item("testpackage");
+        let root_package_init = imports_info._item("testpackage.__init__");
+        let fruit = imports_info._item("testpackage.fruit");
+        let colors = imports_info._item("testpackage.colors");
+
+        assert_eq!(
+            imports_info.internal_imports().get_direct_imports(),
+            hashmap! {
+                root_package => hashset! {root_package_init},
+                root_package_init => hashset! {fruit, colors},
+                fruit => hashset! {},
+                colors => hashset! {}
+            }
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn test_get_items_directly_imported_by() -> Result<()> {
