@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
-use pathfinding::prelude::bfs_reach;
+use pathfinding::prelude::{bfs, bfs_reach};
 
 use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken};
 
@@ -22,13 +22,12 @@ impl<'a> InternalImportsQueries<'a> {
         self.imports_info.package_info.get_item(from)?;
         self.imports_info.package_info.get_item(to)?;
 
-        match self.imports_info.internal_imports.get(&from) {
-            Some(imports) => match imports.get(&to) {
-                Some(_) => Ok(true),
-                None => Ok(false),
-            },
-            None => Ok(false),
-        }
+        Ok(self
+            .imports_info
+            .internal_imports
+            .get(&from)
+            .unwrap()
+            .contains(&to))
     }
 
     pub fn get_items_directly_imported_by(
@@ -119,7 +118,19 @@ impl<'a> InternalImportsQueries<'a> {
         self.imports_info.package_info.get_item(from)?;
         self.imports_info.package_info.get_item(to)?;
 
-        Ok(Some(vec![]))
+        let path = bfs(
+            &from,
+            |item| {
+                self.imports_info
+                    .internal_imports
+                    .get(item)
+                    .unwrap()
+                    .clone()
+            },
+            |item| item == &to,
+        );
+
+        Ok(path)
     }
 
     pub fn path_exists(&'a self, from: PackageItemToken, to: PackageItemToken) -> Result<bool> {
@@ -345,6 +356,32 @@ from testpackage import books",
         assert_eq!(
             metadata.err().unwrap().downcast_ref::<Error>().unwrap(),
             &Error::NoSuchImport
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_shortest_path() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "",
+            "a.py" => "from testpackage import b; from testpackage import c",
+            "b.py" => "from testpackage import c",
+            "c.py" => "from testpackage import d; from testpackage import e",
+            "d.py" => "from testpackage import e",
+            "e.py" => ""
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let a = imports_info._item("testpackage.a");
+        let c = imports_info._item("testpackage.c");
+        let e = imports_info._item("testpackage.e");
+
+        assert_eq!(
+            imports_info.internal_imports().get_shortest_path(a, e)?,
+            Some(vec![a, c, e])
         );
 
         Ok(())
