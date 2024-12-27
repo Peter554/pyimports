@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{collections::HashSet, path::Path};
 
 use maplit::hashset;
@@ -5,50 +6,53 @@ use maplit::hashset;
 use crate::package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
+use crate::Error;
 
 #[derive(Debug)]
 pub(crate) struct PackageContents {
-    pub root: PackageItemToken,
-    pub descendant_packages: HashSet<PackageItemToken>,
-    pub descendant_modules: HashSet<PackageItemToken>,
-    pub descendant_items: HashSet<PackageItemToken>,
     pub all_items: HashSet<PackageItemToken>,
 }
 
 impl PackageInfo {
     pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
         if let Some(package) = self.packages_by_path.get(path) {
-            self.get_package(*package).map(PackageItem::Package)
-        } else if let Some(module) = self.modules_by_path.get(path) {
-            self.get_module(*module).map(PackageItem::Module)
+            Some(self.get_package(*package).unwrap().into())
         } else {
-            None
+            self.modules_by_path
+                .get(path)
+                .map(|module| self.get_module(*module).unwrap().into())
         }
     }
 
     pub fn get_item_by_pypath(&self, pypath: &str) -> Option<PackageItem> {
         if let Some(package) = self.packages_by_pypath.get(pypath) {
-            self.get_package(*package).map(PackageItem::Package)
-        } else if let Some(module) = self.modules_by_pypath.get(pypath) {
-            self.get_module(*module).map(PackageItem::Module)
+            Some(self.get_package(*package).unwrap().into())
         } else {
-            None
+            self.modules_by_pypath
+                .get(pypath)
+                .map(|module| self.get_module(*module).unwrap().into())
         }
     }
 
-    pub fn get_item(&self, token: PackageItemToken) -> Option<PackageItem> {
+    pub fn get_item(&self, token: PackageItemToken) -> Result<PackageItem> {
         match token {
-            PackageItemToken::Package(token) => self.get_package(token).map(PackageItem::Package),
-            PackageItemToken::Module(token) => self.get_module(token).map(PackageItem::Module),
+            PackageItemToken::Package(token) => Ok(self.get_package(token)?.into()),
+            PackageItemToken::Module(token) => Ok(self.get_module(token)?.into()),
         }
     }
 
-    pub fn get_package(&self, token: PackageToken) -> Option<&Package> {
-        self.packages.get(token)
+    pub fn get_package(&self, token: PackageToken) -> Result<&Package> {
+        match self.packages.get(token) {
+            Some(package) => Ok(package),
+            None => Err(Error::UnknownPackage(token))?,
+        }
     }
 
-    pub fn get_module(&self, token: ModuleToken) -> Option<&Module> {
-        self.modules.get(token)
+    pub fn get_module(&self, token: ModuleToken) -> Result<&Module> {
+        match self.modules.get(token) {
+            Some(module) => Ok(module),
+            None => Err(Error::UnknownModule(token))?,
+        }
     }
 
     pub fn get_root(&self) -> &Package {
@@ -58,47 +62,39 @@ impl PackageInfo {
     pub fn get_child_items(
         &self,
         token: PackageToken,
-    ) -> Option<impl Iterator<Item = PackageItem>> {
-        match self.get_package(token) {
-            Some(package) => {
-                let child_packages_iter = package
-                    .packages
-                    .iter()
-                    .filter_map(|p| self.get_package(*p))
-                    .map(PackageItem::Package);
-                let child_modules_iter = package
-                    .modules
-                    .iter()
-                    .filter_map(|m| self.get_module(*m))
-                    .map(PackageItem::Module);
-                let v = child_packages_iter
-                    .chain(child_modules_iter)
-                    .collect::<Vec<_>>();
-                Some(v.into_iter())
-            }
-            None => None,
-        }
+    ) -> Result<impl Iterator<Item = PackageItem>> {
+        let package = self.get_package(token)?;
+
+        let child_packages_iter = package
+            .packages
+            .iter()
+            .map(|p| self.get_package(*p).unwrap())
+            .map(PackageItem::Package);
+        let child_modules_iter = package
+            .modules
+            .iter()
+            .map(|m| self.get_module(*m).unwrap())
+            .map(PackageItem::Module);
+        let iter = child_packages_iter.chain(child_modules_iter);
+
+        let v = iter.collect::<Vec<_>>();
+
+        Ok(v.into_iter())
     }
 
     pub fn get_descendant_items(
         &self,
         token: PackageToken,
-    ) -> Option<impl Iterator<Item = PackageItem>> {
-        match self.get_child_items(token) {
-            Some(children) => {
-                let iter = children.chain(
-                    self.get_child_items(token)
-                        .unwrap()
-                        .filter_map(PackageInfo::filter_packages)
-                        .flat_map(|child_package| {
-                            self.get_descendant_items(child_package.token).unwrap()
-                        }),
-                );
-                let v = iter.collect::<Vec<_>>();
-                Some(v.into_iter())
-            }
-            None => None,
-        }
+    ) -> Result<impl Iterator<Item = PackageItem>> {
+        let children = self.get_child_items(token)?;
+        let iter = children.chain(
+            self.get_child_items(token)
+                .unwrap()
+                .filter_map(PackageInfo::filter_packages)
+                .flat_map(|child_package| self.get_descendant_items(child_package.token).unwrap()),
+        );
+        let v = iter.collect::<Vec<_>>();
+        Ok(v.into_iter())
     }
 
     pub fn get_all_items(&self) -> impl Iterator<Item = PackageItem> {
@@ -140,13 +136,7 @@ impl PackageInfo {
         let descendant_items = &descendant_packages | &descendant_modules;
         let all_items = &hashset! {package.into()} | &descendant_items;
 
-        PackageContents {
-            root: package.into(),
-            descendant_packages,
-            descendant_modules,
-            descendant_items,
-            all_items,
-        }
+        PackageContents { all_items }
     }
 }
 

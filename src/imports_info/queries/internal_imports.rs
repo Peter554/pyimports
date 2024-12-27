@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use anyhow::Result;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{ImportsInfo, PackageItemToken};
@@ -12,61 +13,65 @@ impl<'a> InternalImportsQueries<'a> {
     pub fn get_items_directly_imported_by(
         &'a self,
         item: PackageItemToken,
-    ) -> Option<HashSet<PackageItemToken>> {
+    ) -> Result<HashSet<PackageItemToken>> {
         self.get_items(item, |item| {
-            match self.imports_info.internal_imports.get(&item) {
-                Some(imports) => Some(imports.clone()),
-                None => None,
-            }
+            Ok(self
+                .imports_info
+                .internal_imports
+                .get(&item)
+                .unwrap()
+                .clone())
         })
     }
 
     pub fn get_items_that_directly_import(
         &'a self,
         item: PackageItemToken,
-    ) -> Option<HashSet<PackageItemToken>> {
+    ) -> Result<HashSet<PackageItemToken>> {
         self.get_items(item, |item| {
-            match self.imports_info.reverse_internal_imports.get(&item) {
-                Some(imports) => Some(imports.clone()),
-                None => None,
-            }
+            Ok(self
+                .imports_info
+                .reverse_internal_imports
+                .get(&item)
+                .unwrap()
+                .clone())
         })
     }
 
-    fn get_items<F: Fn(PackageItemToken) -> Option<HashSet<PackageItemToken>> + Send + Sync>(
+    fn get_items<F: Fn(PackageItemToken) -> Result<HashSet<PackageItemToken>> + Send + Sync>(
         &'a self,
         item: PackageItemToken,
         f: F,
-    ) -> Option<HashSet<PackageItemToken>> {
+    ) -> Result<HashSet<PackageItemToken>> {
         match item {
             PackageItemToken::Package(package) => {
-                match self.imports_info.package_info.get_package(package) {
-                    Some(package) => {
-                        let package_contents = self
-                            .imports_info
-                            .package_info
-                            .get_package_contents(package.token);
+                let package = self.imports_info.package_info.get_package(package)?;
 
-                        let mut hs: HashSet<PackageItemToken> = HashSet::new();
-                        hs.extend(
-                            package_contents
-                                .all_items
-                                .par_iter()
-                                .fold(HashSet::new, |mut hs, item| {
-                                    hs.extend(f(*item).unwrap());
-                                    hs
-                                })
-                                .reduce(HashSet::new, |mut hs, v| {
-                                    hs.extend(v);
-                                    hs
-                                }),
-                        );
-                        hs = &hs - &package_contents.all_items;
+                let package_contents = self
+                    .imports_info
+                    .package_info
+                    .get_package_contents(package.token);
 
-                        Some(hs)
-                    }
-                    None => None,
-                }
+                let mut hs: HashSet<PackageItemToken> = HashSet::new();
+                hs.extend(
+                    package_contents
+                        .all_items
+                        .par_iter()
+                        .try_fold(
+                            HashSet::new,
+                            |mut hs, item| -> Result<HashSet<PackageItemToken>> {
+                                hs.extend(f(*item)?);
+                                Ok(hs)
+                            },
+                        )
+                        .try_reduce(HashSet::new, |mut hs, v| {
+                            hs.extend(v);
+                            Ok(hs)
+                        })?,
+                );
+                hs = &hs - &package_contents.all_items;
+
+                Ok(hs)
             }
             PackageItemToken::Module(_) => f(item),
         }
@@ -176,11 +181,6 @@ from testpackage import colors
         let package_info = PackageInfo::build(testpackage.path())?;
         let imports_info = ImportsInfo::build(package_info)?;
 
-        let root_package = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage")
-            .unwrap()
-            .token();
         let root_package_init = imports_info
             .package_info
             .get_item_by_pypath("testpackage.__init__")
@@ -199,11 +199,6 @@ from testpackage import colors
         let colors_package_init = imports_info
             .package_info
             .get_item_by_pypath("testpackage.colors.__init__")
-            .unwrap()
-            .token();
-        let red = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.colors.red")
             .unwrap()
             .token();
 
