@@ -153,11 +153,15 @@ impl ImportsInfo {
         from: PackageItemToken,
         to: PackageItemToken,
     ) -> Result<()> {
-        self.internal_imports.entry(from).or_default().remove(&to);
-        self.reverse_internal_imports
-            .entry(to)
-            .or_default()
-            .remove(&from);
+        if self.internal_imports.contains_key(&from) {
+            self.internal_imports.entry(from).or_default().remove(&to);
+        }
+        if self.reverse_internal_imports.contains_key(&to) {
+            self.reverse_internal_imports
+                .entry(to)
+                .or_default()
+                .remove(&from);
+        }
         self.internal_imports_metadata.remove(&(from, to));
         Ok(())
     }

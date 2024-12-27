@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{ModuleToken, PackageToken};
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum Error {
     #[error("unknown package {0:?}")]
     UnknownPackage(PackageToken),
@@ -18,6 +18,9 @@ pub enum Error {
         #[source]
         parse_error: ParseError,
     },
+
+    #[error("no such import")]
+    NoSuchImport,
 
     #[error("not a package")]
     NotAPackage,
