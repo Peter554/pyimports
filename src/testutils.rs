@@ -1,8 +1,3 @@
-//! A collection of testing utilities.
-//!
-//! Should really be `#[cfg(test)]`, but then usage within doctests
-//! doesn't seem to work. Related [GH issue](https://github.com/rust-lang/rust/issues/67295).
-
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs;
