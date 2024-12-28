@@ -170,7 +170,7 @@ where
             }
         }
     } else {
-        panic!()
+        unreachable!()
     }
     Ok(())
 }
