@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Peter554/pyimports/actions/workflows/ci.yml/badge.svg)](https://github.com/Peter554/pyimports/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/pyimports.svg)](https://crates.io/crates/pyimports)
+[![Docs](https://img.shields.io/badge/Docs-grey)](https://docs.rs/pyimports/)
 
 A rust crate for parsing and analyzing the imports within a python package.
 
