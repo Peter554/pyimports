@@ -8,7 +8,10 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
-use crate::package_info::{PackageInfo, PackageItemToken};
+use crate::{
+    package_info::{PackageInfo, PackageItemToken},
+    Error,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportMetadata {
@@ -55,32 +58,30 @@ impl ImportsInfo {
                     is_typechecking: raw_import.is_typechecking,
                 };
 
-                // Try to find an internal import.
-                let internal_item = {
-                    if let Some(item) = package_info
-                        .get_item_by_pypath(&raw_import.pypath)
-                        .map(|item: crate::package_info::PackageItem<'_>| item.token())
-                    {
-                        // An imported module.
-                        Some(item)
-                    } else {
-                        // An imported module member.
-                        // e.g. from testpackage.foo import FooClass
-                        // The pypath is testpackage.foo.FooClass, so we need to strip the final part.
-                        package_info
+                if package_info.pypath_is_internal(&raw_import.pypath) {
+                    let internal_item = {
+                        if let Some(item) = package_info
+                            .get_item_by_pypath(&raw_import.pypath)
+                            .map(|item| item.token())
+                        {
+                            // An imported module.
+                            item
+                        } else if let Some(item) = package_info
                             .get_item_by_pypath(&strip_final_part(&raw_import.pypath))
-                            .map(|item: crate::package_info::PackageItem<'_>| item.token())
-                    }
-                };
+                            .map(|item| item.token())
+                        {
+                            // An imported module member.
+                            // e.g. from testpackage.foo import FooClass
+                            // The pypath is testpackage.foo.FooClass, so we need to strip the final part.
+                            item
+                        } else {
+                            return Err(Error::UnknownInternalImport(raw_import.pypath))?;
+                        }
+                    };
 
-                match internal_item {
-                    Some(internal_item) => {
-                        imports_info.add_internal_import(item, internal_item, Some(metadata))?;
-                    }
-                    None => {
-                        // Do not consider external imports, for now.
-                        // TODO: External imports?
-                    }
+                    imports_info.add_internal_import(item, internal_item, Some(metadata))?;
+                } else {
+                    // TODO
                 }
             }
         }

@@ -19,6 +19,9 @@ pub enum Error {
         parse_error: ParseError,
     },
 
+    #[error("unknown internal import {0}")]
+    UnknownInternalImport(String),
+
     #[error("no such import")]
     NoSuchImport,
 

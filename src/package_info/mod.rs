@@ -233,6 +233,11 @@ impl PackageInfo {
             modules_by_pypath,
         })
     }
+
+    pub fn pypath_is_internal(&self, pypath: &str) -> bool {
+        let root_pypath = self.get_root().pypath.clone();
+        pypath == root_pypath || pypath.starts_with(&(root_pypath + "."))
+    }
 }
 
 #[cfg(test)]
@@ -301,6 +306,21 @@ mod tests {
         let main = package_info.modules.get(main_token).unwrap();
         assert_eq!(main.is_init, false);
         assert_eq!(main.parent, root_package_token);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_pypath_is_internal() -> Result<()> {
+        let test_package = testpackage! {
+            "__init__.py" => ""
+        };
+
+        let package_info = PackageInfo::build(test_package.path())?;
+
+        assert_eq!(package_info.pypath_is_internal("testpackage"), true);
+        assert_eq!(package_info.pypath_is_internal("testpackage.foo"), true);
+        assert_eq!(package_info.pypath_is_internal("django.db.models"), false);
 
         Ok(())
     }
