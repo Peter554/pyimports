@@ -12,6 +12,21 @@ lazy_static! {
     static ref ABSOLUTE_PYPATH_REGEX: Regex = Regex::new(r"^\w+(\.\w+)*$").unwrap();
 }
 
+/// A dotted path to a python module/module-member.
+/// An absolute path (not a relative path).
+///
+/// # Example
+///
+/// ```
+/// use pyimports::AbsolutePyPath;
+///
+/// let result  = "foo.bar".parse::<AbsolutePyPath>();
+/// assert!(result.is_ok());
+///
+/// // Relative paths are not allowed.
+/// let result  = ".foo.bar".parse::<AbsolutePyPath>();
+/// assert!(result.is_err());
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AbsolutePyPath {
     pub(crate) s: String,
@@ -64,14 +79,52 @@ impl AbsolutePyPath {
         Ok(AbsolutePyPath::new(&s))
     }
 
+    /// Returns true if the passed pypath is contained by this pypath.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pyimports::AbsolutePyPath;
+    ///
+    /// let foo_bar: AbsolutePyPath = "foo.bar".parse().unwrap();
+    /// let foo_bar_baz: AbsolutePyPath = "foo.bar.baz".parse().unwrap();
+    ///
+    /// assert!(foo_bar.contains(&foo_bar_baz));
+    /// assert!(!foo_bar_baz.contains(&foo_bar));
+    /// ```
     pub fn contains(&self, other: &AbsolutePyPath) -> bool {
         self == other || other.s.starts_with(&(self.s.clone() + "."))
     }
 
+    /// Returns true if this pypath is contained by the passed pypath.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pyimports::AbsolutePyPath;
+    ///
+    /// let foo_bar: AbsolutePyPath = "foo.bar".parse().unwrap();
+    /// let foo_bar_baz: AbsolutePyPath = "foo.bar.baz".parse().unwrap();
+    ///
+    /// assert!(!foo_bar.is_contained_by(&foo_bar_baz));
+    /// assert!(foo_bar_baz.is_contained_by(&foo_bar));
+    /// ```
     pub fn is_contained_by(&self, other: &AbsolutePyPath) -> bool {
         other.contains(self)
     }
 
+    /// Returns the parent of this pypath.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pyimports::AbsolutePyPath;
+    ///
+    /// let foo_bar: AbsolutePyPath = "foo.bar".parse().unwrap();
+    /// let foo_bar_baz: AbsolutePyPath = "foo.bar.baz".parse().unwrap();
+    ///
+    ///assert!(foo_bar_baz.parent() == foo_bar);
+    /// ```
     pub fn parent(&self) -> Self {
         let mut v = self.s.split(".").collect::<Vec<_>>();
         v.pop();

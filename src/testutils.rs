@@ -8,6 +8,7 @@ use tempdir::TempDir;
 
 use crate::{ImportsInfo, PackageInfo, PackageItemToken};
 
+///
 pub struct TestPackage {
     // Need to move the TempDir into TestPackage to avoid it being dropped.
     _temp_dir: TempDir,
@@ -15,6 +16,7 @@ pub struct TestPackage {
 }
 
 impl TestPackage {
+    ///
     pub fn new(name: &str, modules: HashMap<&str, &str>) -> Result<TestPackage> {
         let temp_dir = TempDir::new("")?;
         let dir_path = temp_dir.path().join(name);
@@ -29,10 +31,12 @@ impl TestPackage {
         Ok(test_package)
     }
 
+    ///
     pub fn path(&self) -> &Path {
         &self.dir_path
     }
 
+    ///
     pub fn add_file(&self, path: &str, contents: &str) -> Result<()> {
         let file_path = self.dir_path.join(path);
         let file_dir = file_path.parent().unwrap();
@@ -43,6 +47,7 @@ impl TestPackage {
     }
 }
 
+/// Creates a test package in a temporary directory.
 #[macro_export]
 macro_rules! testpackage {
     ($($k:expr => $v:expr),*) => {{
