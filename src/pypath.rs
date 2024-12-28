@@ -9,7 +9,7 @@ use regex::Regex;
 use crate::Error;
 
 lazy_static! {
-    static ref PYPATH_REGEX: Regex = Regex::new(r"^\w+(\.\w+)*$").unwrap();
+    static ref ABSOLUTE_PYPATH_REGEX: Regex = Regex::new(r"^\w+(\.\w+)*$").unwrap();
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -27,7 +27,7 @@ impl FromStr for AbsolutePyPath {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        if PYPATH_REGEX.is_match(s) {
+        if ABSOLUTE_PYPATH_REGEX.is_match(s) {
             Ok(AbsolutePyPath::new(s))
         } else {
             Err(Error::InvalidPyPath)
@@ -38,6 +38,12 @@ impl FromStr for AbsolutePyPath {
 impl From<AbsolutePyPath> for String {
     fn from(value: AbsolutePyPath) -> Self {
         value.s
+    }
+}
+
+impl<'a> From<&'a AbsolutePyPath> for &'a str {
+    fn from(value: &'a AbsolutePyPath) -> Self {
+        &value.s
     }
 }
 
@@ -85,9 +91,47 @@ mod tests {
         assert!(AbsolutePyPath::from_str("foo.bar").is_ok());
 
         assert!(matches!(
-            AbsolutePyPath::from_str(".foo"),
+            AbsolutePyPath::from_str(".foo.bar"),
             Err(Error::InvalidPyPath)
         ));
+        assert!(matches!(
+            AbsolutePyPath::from_str("foo.bar."),
+            Err(Error::InvalidPyPath)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_contains() -> Result<()> {
+        assert!(AbsolutePyPath::new("foo.bar").contains(&AbsolutePyPath::new("foo.bar")));
+        assert!(AbsolutePyPath::new("foo.bar").contains(&AbsolutePyPath::new("foo.bar.baz")));
+        assert!(!AbsolutePyPath::new("foo.bar").contains(&AbsolutePyPath::new("foo")));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_contained_by() -> Result<()> {
+        assert!(AbsolutePyPath::new("foo.bar").is_contained_by(&AbsolutePyPath::new("foo.bar")));
+        assert!(
+            !AbsolutePyPath::new("foo.bar").is_contained_by(&AbsolutePyPath::new("foo.bar.baz"))
+        );
+        assert!(AbsolutePyPath::new("foo.bar").is_contained_by(&AbsolutePyPath::new("foo")));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parent() -> Result<()> {
+        assert_eq!(
+            AbsolutePyPath::new("foo.bar.baz").parent(),
+            AbsolutePyPath::new("foo.bar")
+        );
+        assert_eq!(
+            AbsolutePyPath::new("foo.bar").parent(),
+            AbsolutePyPath::new("foo")
+        );
 
         Ok(())
     }
