@@ -13,7 +13,8 @@ pub use testutils::TestPackage;
 
 pub use errors::Error;
 pub use imports_info::{
-    ImportMetadata, ImportsInfo, ImportsInfoBuildOptions, InternalImportsQueries, PackageItemTarget,
+    ExternalImportsQueries, ImportMetadata, ImportsInfo, ImportsInfoBuildOptions,
+    InternalImportsQueries, PackageItemTarget,
 };
 pub use package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,

@@ -7,6 +7,7 @@ use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
+pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
@@ -148,6 +149,10 @@ impl ImportsInfo {
 
     pub fn internal_imports(&self) -> InternalImportsQueries {
         InternalImportsQueries { imports_info: self }
+    }
+
+    pub fn external_imports(&self) -> ExternalImportsQueries {
+        ExternalImportsQueries { imports_info: self }
     }
 
     pub fn exclude_internal_imports(
