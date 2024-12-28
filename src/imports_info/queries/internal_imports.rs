@@ -1,9 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
+use maplit::hashset;
 use pathfinding::prelude::{bfs, bfs_reach};
 
-use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken};
+use crate::{Error, ImportMetadata, ImportsInfo, PackageItemTarget, PackageItemToken};
 
 pub struct InternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
@@ -113,10 +114,17 @@ impl<'a> InternalImportsQueries<'a> {
     pub fn get_shortest_path(
         &'a self,
         from: PackageItemToken,
-        to: PackageItemToken,
+        to: PackageItemTarget,
     ) -> Result<Option<Vec<PackageItemToken>>> {
+        let to = match to {
+            PackageItemTarget::Single(token) => hashset! {token},
+            PackageItemTarget::Many(tokens) => tokens,
+        };
+
         self.imports_info.package_info.get_item(from)?;
-        self.imports_info.package_info.get_item(to)?;
+        for to_target in to.iter() {
+            self.imports_info.package_info.get_item(*to_target)?;
+        }
 
         let path = bfs(
             &from,
@@ -127,13 +135,13 @@ impl<'a> InternalImportsQueries<'a> {
                     .unwrap()
                     .clone()
             },
-            |item| item == &to,
+            |item| to.contains(item),
         );
 
         Ok(path)
     }
 
-    pub fn path_exists(&'a self, from: PackageItemToken, to: PackageItemToken) -> Result<bool> {
+    pub fn path_exists(&'a self, from: PackageItemToken, to: PackageItemTarget) -> Result<bool> {
         Ok(self.get_shortest_path(from, to)?.is_some())
     }
 }
@@ -380,7 +388,9 @@ from testpackage import books",
         let e = imports_info._item("testpackage.e");
 
         assert_eq!(
-            imports_info.internal_imports().get_shortest_path(a, e)?,
+            imports_info
+                .internal_imports()
+                .get_shortest_path(a, PackageItemTarget::Single(e))?,
             Some(vec![a, c, e])
         );
 

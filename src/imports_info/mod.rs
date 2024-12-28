@@ -19,6 +19,12 @@ pub struct ImportMetadata {
     is_typechecking: bool,
 }
 
+#[derive(Debug)]
+pub enum PackageItemTarget {
+    Single(PackageItemToken),
+    Many(HashSet<PackageItemToken>),
+}
+
 #[derive(Debug, Clone)]
 pub struct ImportsInfo {
     package_info: PackageInfo,
