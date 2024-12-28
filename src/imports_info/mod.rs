@@ -37,8 +37,46 @@ pub struct ImportsInfo {
     external_imports_metadata: HashMap<(PackageItemToken, String), ImportMetadata>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ImportsInfoBuildOptions {
+    include_typechecking_imports: bool,
+    include_external_imports: bool,
+}
+
+impl Default for ImportsInfoBuildOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ImportsInfoBuildOptions {
+    pub fn new() -> Self {
+        ImportsInfoBuildOptions {
+            include_typechecking_imports: true,
+            include_external_imports: true,
+        }
+    }
+
+    pub fn exclude_typechecking_imports(mut self) -> Self {
+        self.include_typechecking_imports = false;
+        self
+    }
+
+    pub fn exclude_external_imports(mut self) -> Self {
+        self.include_external_imports = false;
+        self
+    }
+}
+
 impl ImportsInfo {
     pub fn build(package_info: PackageInfo) -> Result<Self> {
+        ImportsInfo::build_with_options(package_info, ImportsInfoBuildOptions::new())
+    }
+
+    pub fn build_with_options(
+        package_info: PackageInfo,
+        options: ImportsInfoBuildOptions,
+    ) -> Result<Self> {
         let all_raw_imports = get_all_raw_imports(&package_info)?;
 
         let mut imports_info = ImportsInfo {
@@ -64,6 +102,10 @@ impl ImportsInfo {
 
         for (item, raw_imports) in all_raw_imports {
             for raw_import in raw_imports {
+                if !options.include_typechecking_imports && raw_import.is_typechecking {
+                    continue;
+                }
+
                 let metadata = ImportMetadata {
                     line_number: raw_import.line_number,
                     is_typechecking: raw_import.is_typechecking,
@@ -91,7 +133,7 @@ impl ImportsInfo {
                     };
 
                     imports_info.add_internal_import(item, internal_item, Some(metadata))?;
-                } else {
+                } else if options.include_external_imports {
                     imports_info.add_external_import(item, raw_import.pypath, Some(metadata))?;
                 }
             }

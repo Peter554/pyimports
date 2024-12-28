@@ -12,7 +12,9 @@ mod testutils;
 pub use testutils::TestPackage;
 
 pub use errors::Error;
-pub use imports_info::{ImportMetadata, ImportsInfo, InternalImportsQueries, PackageItemTarget};
+pub use imports_info::{
+    ImportMetadata, ImportsInfo, ImportsInfoBuildOptions, InternalImportsQueries, PackageItemTarget,
+};
 pub use package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
