@@ -2,9 +2,10 @@
 name = "pyimports"
 description = "Parse and analyze the imports within a python package"
 repository = "https://github.com/Peter554/pyimports"
+documentation = "https://docs.rs/pyimports/"
 readme = "README.md"
 license = "MIT"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 exclude = [
     ".github/*",
