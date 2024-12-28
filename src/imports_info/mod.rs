@@ -19,10 +19,12 @@ pub struct ImportMetadata {
     is_typechecking: bool,
 }
 
-#[derive(Debug)]
-pub enum PackageItemTarget {
-    One(PackageItemToken),
-    Many(HashSet<PackageItemToken>),
+pub type PackageItemTokenSet = HashSet<PackageItemToken>;
+
+impl From<PackageItemToken> for PackageItemTokenSet {
+    fn from(value: PackageItemToken) -> Self {
+        PackageItemTokenSet::from([value])
+    }
 }
 
 #[derive(Debug, Clone)]

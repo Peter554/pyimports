@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
-use maplit::hashset;
 use pathfinding::prelude::{bfs, bfs_reach};
 
-use crate::{Error, ImportMetadata, ImportsInfo, PackageItemTarget, PackageItemToken};
+use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken, PackageItemTokenSet};
 
 pub struct InternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
@@ -111,15 +110,15 @@ impl<'a> InternalImportsQueries<'a> {
         }
     }
 
-    pub fn get_shortest_path(
+    pub fn get_shortest_path<To>(
         &'a self,
         from: PackageItemToken,
-        to: PackageItemTarget,
-    ) -> Result<Option<Vec<PackageItemToken>>> {
-        let to = match to {
-            PackageItemTarget::One(token) => hashset! {token},
-            PackageItemTarget::Many(tokens) => tokens,
-        };
+        to: To,
+    ) -> Result<Option<Vec<PackageItemToken>>>
+    where
+        To: Into<PackageItemTokenSet>,
+    {
+        let to: PackageItemTokenSet = to.into();
 
         self.imports_info.package_info.get_item(from)?;
         for to_target in to.iter() {
@@ -141,7 +140,10 @@ impl<'a> InternalImportsQueries<'a> {
         Ok(path)
     }
 
-    pub fn path_exists(&'a self, from: PackageItemToken, to: PackageItemTarget) -> Result<bool> {
+    pub fn path_exists<To>(&'a self, from: PackageItemToken, to: To) -> Result<bool>
+    where
+        To: Into<PackageItemTokenSet>,
+    {
         Ok(self.get_shortest_path(from, to)?.is_some())
     }
 }
@@ -388,11 +390,32 @@ from testpackage import books",
         let e = imports_info._item("testpackage.e");
 
         assert_eq!(
-            imports_info
-                .internal_imports()
-                .get_shortest_path(a, PackageItemTarget::One(e))?,
+            imports_info.internal_imports().get_shortest_path(a, e)?,
             Some(vec![a, c, e])
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_path_exists() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "",
+            "a.py" => "from testpackage import b; from testpackage import c",
+            "b.py" => "from testpackage import c",
+            "c.py" => "from testpackage import d; from testpackage import e",
+            "d.py" => "from testpackage import e",
+            "e.py" => ""
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let a = imports_info._item("testpackage.a");
+        let e = imports_info._item("testpackage.e");
+
+        assert!(imports_info.internal_imports().path_exists(a, e)?);
+        assert!(!imports_info.internal_imports().path_exists(e, a)?);
 
         Ok(())
     }

@@ -14,7 +14,7 @@ pub use testutils::TestPackage;
 pub use errors::Error;
 pub use imports_info::{
     ExternalImportsQueries, ImportMetadata, ImportsInfo, ImportsInfoBuildOptions,
-    InternalImportsQueries, PackageItemTarget,
+    InternalImportsQueries, PackageItemTokenSet,
 };
 pub use package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
