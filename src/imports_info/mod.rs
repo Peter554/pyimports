@@ -32,6 +32,9 @@ pub struct ImportsInfo {
     internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     internal_imports_metadata: HashMap<(PackageItemToken, PackageItemToken), ImportMetadata>,
+    //
+    external_imports: HashMap<PackageItemToken, HashSet<String>>,
+    external_imports_metadata: HashMap<(PackageItemToken, String), ImportMetadata>,
 }
 
 impl ImportsInfo {
@@ -43,6 +46,8 @@ impl ImportsInfo {
             internal_imports: HashMap::new(),
             reverse_internal_imports: HashMap::new(),
             internal_imports_metadata: HashMap::new(),
+            external_imports: HashMap::new(),
+            external_imports_metadata: HashMap::new(),
         };
 
         imports_info.initialise_maps()?;
@@ -87,7 +92,7 @@ impl ImportsInfo {
 
                     imports_info.add_internal_import(item, internal_item, Some(metadata))?;
                 } else {
-                    // TODO
+                    imports_info.add_external_import(item, raw_import.pypath, Some(metadata))?;
                 }
             }
         }
@@ -103,7 +108,7 @@ impl ImportsInfo {
         InternalImportsQueries { imports_info: self }
     }
 
-    pub fn exclude_imports(
+    pub fn exclude_internal_imports(
         &self,
         imports: impl IntoIterator<Item = (PackageItemToken, PackageItemToken)>,
     ) -> Result<Self> {
@@ -114,18 +119,45 @@ impl ImportsInfo {
         Ok(imports_info)
     }
 
+    pub fn exclude_external_imports(
+        &self,
+        imports: impl IntoIterator<Item = (PackageItemToken, String)>,
+    ) -> Result<Self> {
+        let mut imports_info = self.clone();
+        for (from, to) in imports {
+            imports_info.remove_external_import(from, to)?;
+        }
+        Ok(imports_info)
+    }
+
     pub fn exclude_typechecking_imports(&self) -> Result<Self> {
-        let imports = self
-            .internal_imports_metadata
-            .iter()
-            .filter_map(|((from, to), metadata)| {
-                if metadata.is_typechecking {
-                    Some((*from, *to))
-                } else {
-                    None
-                }
-            });
-        self.exclude_imports(imports)
+        let mut imports_info = self.clone();
+
+        let internal_imports =
+            self.internal_imports_metadata
+                .iter()
+                .filter_map(|((from, to), metadata)| {
+                    if metadata.is_typechecking {
+                        Some((*from, *to))
+                    } else {
+                        None
+                    }
+                });
+        imports_info = imports_info.exclude_internal_imports(internal_imports)?;
+
+        let external_imports =
+            self.external_imports_metadata
+                .iter()
+                .filter_map(|((from, to), metadata)| {
+                    if metadata.is_typechecking {
+                        Some((*from, to.clone()))
+                    } else {
+                        None
+                    }
+                });
+        imports_info = imports_info.exclude_external_imports(external_imports)?;
+
+        Ok(imports_info)
     }
 
     fn initialise_maps(&mut self) -> Result<()> {
@@ -134,6 +166,8 @@ impl ImportsInfo {
             self.reverse_internal_imports
                 .entry(item.token())
                 .or_default();
+            //
+            self.external_imports.entry(item.token()).or_default();
         }
         Ok(())
     }
@@ -170,6 +204,30 @@ impl ImportsInfo {
                 .remove(&from);
         }
         self.internal_imports_metadata.remove(&(from, to));
+        Ok(())
+    }
+
+    fn add_external_import(
+        &mut self,
+        from: PackageItemToken,
+        to: String,
+        metadata: Option<ImportMetadata>,
+    ) -> Result<()> {
+        self.external_imports
+            .entry(from)
+            .or_default()
+            .insert(to.clone());
+        if let Some(metadata) = metadata {
+            self.external_imports_metadata.insert((from, to), metadata);
+        }
+        Ok(())
+    }
+
+    fn remove_external_import(&mut self, from: PackageItemToken, to: String) -> Result<()> {
+        if self.external_imports.contains_key(&from) {
+            self.external_imports.entry(from).or_default().remove(&to);
+        };
+        self.external_imports_metadata.remove(&(from, to));
         Ok(())
     }
 }
@@ -301,6 +359,26 @@ from django.db import models
             }
         );
 
+        assert_eq!(
+            imports_info.external_imports,
+            hashmap! {
+                root_package => hashset! {},
+                root_package_init => hashset! {},
+                a => hashset! {},
+                b => hashset!{"django.db.models".into()},
+            }
+        );
+
+        assert_eq!(
+            imports_info.external_imports_metadata,
+            hashmap! {
+                (b, "django.db.models".into()) => ImportMetadata{
+                    line_number: 2,
+                    is_typechecking: false,
+                },
+            }
+        );
+
         Ok(())
     }
 
@@ -373,7 +451,7 @@ from testpackage import b
             }
         );
 
-        let imports_info = imports_info.exclude_imports(vec![(root_package_init, a)])?;
+        let imports_info = imports_info.exclude_internal_imports(vec![(root_package_init, a)])?;
 
         assert_eq!(
             imports_info.internal_imports,
