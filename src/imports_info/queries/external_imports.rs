@@ -2,18 +2,22 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 
-use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken, PyPath};
+use crate::{AbsolutePyPath, Error, ImportMetadata, ImportsInfo, PackageItemToken};
 
 pub struct ExternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
 }
 
 impl<'a> ExternalImportsQueries<'a> {
-    pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<PyPath>> {
+    pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<AbsolutePyPath>> {
         self.imports_info.external_imports.clone()
     }
 
-    pub fn direct_import_exists(&self, from: PackageItemToken, to: &PyPath) -> Result<bool> {
+    pub fn direct_import_exists(
+        &self,
+        from: PackageItemToken,
+        to: &AbsolutePyPath,
+    ) -> Result<bool> {
         self.imports_info.package_info.get_item(from)?;
 
         Ok(self
@@ -27,7 +31,7 @@ impl<'a> ExternalImportsQueries<'a> {
     pub fn get_items_directly_imported_by(
         &'a self,
         item: PackageItemToken,
-    ) -> Result<HashSet<PyPath>> {
+    ) -> Result<HashSet<AbsolutePyPath>> {
         self.imports_info.package_info.get_item(item)?;
 
         Ok(self
@@ -41,7 +45,7 @@ impl<'a> ExternalImportsQueries<'a> {
     pub fn get_import_metadata(
         &'a self,
         from: PackageItemToken,
-        to: &PyPath,
+        to: &AbsolutePyPath,
     ) -> Result<Option<&'a ImportMetadata>> {
         if self.direct_import_exists(from, to)? {
             Ok(self
@@ -81,8 +85,8 @@ mod tests {
             imports_info.external_imports().get_direct_imports(),
             hashmap! {
                 root_package => hashset!{},
-                root_package_init => hashset! {"pydantic".into()},
-                a => hashset! {"django.db".into()},
+                root_package_init => hashset! {"pydantic".parse()?},
+                a => hashset! {"django.db".parse()?},
             }
         );
 
@@ -105,7 +109,7 @@ mod tests {
             imports_info
                 .external_imports()
                 .get_items_directly_imported_by(root_package_init)?,
-            hashset! {"pydantic".into()}
+            hashset! {"pydantic".parse()?}
         );
 
         Ok(())
@@ -124,7 +128,7 @@ mod tests {
 
         let external_imports = imports_info.external_imports();
         let metadata =
-            external_imports.get_import_metadata(root_package_init, &"pydantic".into())?;
+            external_imports.get_import_metadata(root_package_init, &"pydantic".parse()?)?;
 
         assert_eq!(
             metadata,

@@ -4,12 +4,44 @@ use anyhow::Result;
 use rustpython_parser::{self, ast::Stmt, source_code::LinearLocator};
 use std::{fs, path::Path};
 
-use crate::errors::Error;
-use crate::PyPath;
+use crate::{errors::Error, AbsolutePyPath};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct AbsoluteOrRelativePyPath {
+    s: String,
+}
+
+impl AbsoluteOrRelativePyPath {
+    pub fn new(s: &str) -> Self {
+        AbsoluteOrRelativePyPath { s: s.to_string() }
+    }
+
+    pub fn is_relative(&self) -> bool {
+        self.s.starts_with(".")
+    }
+
+    pub fn resolve_relative(&self, path: &Path, root_path: &Path) -> AbsolutePyPath {
+        if !self.is_relative() {
+            return AbsolutePyPath { s: self.s.clone() };
+        }
+        let trimmed_pypath = self.s.trim_start_matches(".");
+        let base_pypath = {
+            let n = self.s.len() - trimmed_pypath.len();
+            let mut base_path = path;
+            for _ in 0..n {
+                base_path = base_path.parent().unwrap();
+            }
+            AbsolutePyPath::from_path(base_path, root_path).unwrap()
+        };
+        AbsolutePyPath {
+            s: base_pypath.s + "." + trimmed_pypath,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RawImport {
-    pub pypath: PyPath,
+    pub pypath: AbsoluteOrRelativePyPath,
     pub line_number: usize,
     pub is_typechecking: bool,
 }
@@ -47,20 +79,6 @@ pub fn parse_imports(path: &Path) -> Result<Vec<RawImport>> {
     Ok(visitor.imports)
 }
 
-pub fn resolve_relative_imports(
-    path: &Path,
-    imports: Vec<RawImport>,
-    root_path: &Path,
-) -> Result<Vec<RawImport>> {
-    let mut imports = imports.clone();
-    for import in imports.iter_mut() {
-        if import.pypath.is_relative() {
-            import.pypath = import.pypath.resolve_relative(path, root_path);
-        }
-    }
-    Ok(imports)
-}
-
 struct ImportVisitor<'a> {
     locator: LinearLocator<'a>,
     imports: Vec<RawImport>,
@@ -82,7 +100,7 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
                 for name in stmt.names.iter() {
                     let location = self.locator.locate(name.range.start());
                     self.imports.push(RawImport {
-                        pypath: name.name.to_string().into(),
+                        pypath: AbsoluteOrRelativePyPath::new(name.name.as_ref()),
                         line_number: location.row.to_usize(),
                         is_typechecking: context.is_typechecking,
                     });
@@ -104,7 +122,9 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
                 for name in stmt.names.iter() {
                     let location = self.locator.locate(name.range.start());
                     self.imports.push(RawImport {
-                        pypath: (prefix.clone() + name.name.as_ref()).into(),
+                        pypath: AbsoluteOrRelativePyPath::new(
+                            &(prefix.clone() + name.name.as_ref()),
+                        ),
                         line_number: location.row.to_usize(),
                         is_typechecking: context.is_typechecking,
                     });
@@ -151,11 +171,17 @@ mod tests {
     use crate::{testpackage, testutils::TestPackage};
 
     use parameterized::parameterized;
-    use std::collections::HashSet;
+    use std::{collections::HashSet, path::PathBuf};
 
     struct TestCase<'a> {
         code: &'a str,
         expected_imports: Vec<RawImport>,
+    }
+
+    impl From<&str> for AbsoluteOrRelativePyPath {
+        fn from(value: &str) -> Self {
+            AbsoluteOrRelativePyPath::new(value)
+        }
     }
 
     #[parameterized(case={
@@ -317,59 +343,45 @@ else:
 
     struct RelativeImportsTestCase<'a> {
         path: &'a str,
-        code: &'a str,
-        expected_imports: Vec<RawImport>,
+        raw_pypath: &'a str,
+        expected: AbsolutePyPath,
     }
 
     #[parameterized(case={
         RelativeImportsTestCase {
             path: "foo.py",
-            code: "from . import bar",
-            expected_imports: vec![
-                RawImport {pypath: "testpackage.bar".into(), line_number: 1, is_typechecking: false}
-            ]
+            raw_pypath: ".bar",
+            expected:  AbsolutePyPath::new("testpackage.bar")     
         },
         RelativeImportsTestCase {
             path: "subpackage/foo.py",
-            code: "from .. import bar",
-            expected_imports: vec![
-                RawImport {pypath: "testpackage.bar".into(), line_number: 1, is_typechecking: false}
-            ]
+            raw_pypath: "..bar",
+            expected:   AbsolutePyPath::new("testpackage.bar")
         },
         RelativeImportsTestCase {
             path: "foo.py",
-            code: "from .bar import ABC",
-            expected_imports: vec![
-                RawImport {pypath: "testpackage.bar.ABC".into(), line_number: 1, is_typechecking: false}
-            ]
+            raw_pypath: ".bar.ABC",
+            expected: AbsolutePyPath::new("testpackage.bar.ABC")      
         },
         RelativeImportsTestCase {
             path: "subpackage/foo.py",
-            code: "from ..bar import ABC",
-            expected_imports: vec![
-                RawImport {pypath: "testpackage.bar.ABC".into(), line_number: 1, is_typechecking: false}
-            ]
+            raw_pypath: "..bar.ABC",
+            expected:   AbsolutePyPath::new("testpackage.bar.ABC")   
         },
     })]
     fn test_resolve_relative_imports(case: RelativeImportsTestCase<'_>) -> Result<()> {
-        let test_package = testpackage! {
-                "__init__.py" => "",
-                "bar.py" => "",
-                case.path => case.code
+        let testpackage = testpackage! {
+            "__init__.py" => ""
         };
 
-        let imports = parse_imports(&test_package.path().join(case.path))?;
+        let raw_pypath = AbsoluteOrRelativePyPath::new(case.raw_pypath);
 
-        let imports = resolve_relative_imports(
-            &test_package.path().join(case.path),
-            imports,
-            test_package.path(),
-        )?;
-
-        assert_eq!(imports.len(), case.expected_imports.len());
         assert_eq!(
-            imports.into_iter().collect::<HashSet<_>>(),
-            case.expected_imports.into_iter().collect::<HashSet<_>>()
+            raw_pypath.resolve_relative(
+                &testpackage.path().join(PathBuf::from(case.path)),
+                testpackage.path()
+            ),
+            case.expected
         );
 
         Ok(())

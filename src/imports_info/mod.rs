@@ -2,7 +2,6 @@ mod parse;
 mod queries;
 
 use anyhow::Result;
-use parse::RawImport;
 use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -11,7 +10,7 @@ pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
-    Error, PyPath,
+    AbsolutePyPath, Error,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +21,7 @@ pub struct ImportMetadata {
 
 #[derive(Debug)]
 pub enum PackageItemTarget {
-    Single(PackageItemToken),
+    One(PackageItemToken),
     Many(HashSet<PackageItemToken>),
 }
 
@@ -34,8 +33,8 @@ pub struct ImportsInfo {
     reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     internal_imports_metadata: HashMap<(PackageItemToken, PackageItemToken), ImportMetadata>,
     //
-    external_imports: HashMap<PackageItemToken, HashSet<PyPath>>,
-    external_imports_metadata: HashMap<(PackageItemToken, PyPath), ImportMetadata>,
+    external_imports: HashMap<PackageItemToken, HashSet<AbsolutePyPath>>,
+    external_imports_metadata: HashMap<(PackageItemToken, AbsolutePyPath), ImportMetadata>,
 }
 
 #[derive(Debug, Clone)]
@@ -168,7 +167,7 @@ impl ImportsInfo {
 
     pub fn exclude_external_imports(
         &self,
-        imports: impl IntoIterator<Item = (PackageItemToken, PyPath)>,
+        imports: impl IntoIterator<Item = (PackageItemToken, AbsolutePyPath)>,
     ) -> Result<Self> {
         let mut imports_info = self.clone();
         for (from, to) in imports {
@@ -257,7 +256,7 @@ impl ImportsInfo {
     fn add_external_import(
         &mut self,
         from: PackageItemToken,
-        to: PyPath,
+        to: AbsolutePyPath,
         metadata: Option<ImportMetadata>,
     ) -> Result<()> {
         self.external_imports
@@ -270,7 +269,7 @@ impl ImportsInfo {
         Ok(())
     }
 
-    fn remove_external_import(&mut self, from: PackageItemToken, to: PyPath) -> Result<()> {
+    fn remove_external_import(&mut self, from: PackageItemToken, to: AbsolutePyPath) -> Result<()> {
         if self.external_imports.contains_key(&from) {
             self.external_imports.entry(from).or_default().remove(&to);
         };
@@ -279,24 +278,37 @@ impl ImportsInfo {
     }
 }
 
+#[derive(Debug)]
+struct ResolvedRawImport {
+    pypath: AbsolutePyPath,
+    line_number: usize,
+    is_typechecking: bool,
+}
+
 fn get_all_raw_imports(
     package_info: &PackageInfo,
-) -> Result<HashMap<PackageItemToken, Vec<RawImport>>> {
+) -> Result<HashMap<PackageItemToken, Vec<ResolvedRawImport>>> {
     let all_raw_imports = package_info
         .get_all_items()
         .filter_map(PackageInfo::filter_modules)
         .par_bridge()
         .try_fold(
             HashMap::new,
-            |mut hm: HashMap<PackageItemToken, Vec<RawImport>>, module| -> Result<_> {
+            |mut hm: HashMap<PackageItemToken, Vec<ResolvedRawImport>>, module| -> Result<_> {
                 // Parse the raw imports.
                 let raw_imports = parse::parse_imports(&module.path)?;
+
                 // Resolve any relative imports.
-                let raw_imports = parse::resolve_relative_imports(
-                    &module.path,
-                    raw_imports,
-                    &package_info.get_root().path,
-                )?;
+                let raw_imports = raw_imports
+                    .into_iter()
+                    .map(|o| ResolvedRawImport {
+                        pypath: o
+                            .pypath
+                            .resolve_relative(&module.path, &package_info.get_root().path),
+                        line_number: o.line_number,
+                        is_typechecking: o.is_typechecking,
+                    })
+                    .collect::<Vec<_>>();
 
                 hm.entry(module.token.into())
                     .or_default()
@@ -390,14 +402,14 @@ from django.db import models
                 root_package => hashset! {},
                 root_package_init => hashset! {},
                 a => hashset! {},
-                b => hashset!{"django.db.models".into()},
+                b => hashset!{"django.db.models".parse()?},
             }
         );
 
         assert_eq!(
             imports_info.external_imports_metadata,
             hashmap! {
-                (b, "django.db.models".into()) => ImportMetadata{
+                (b, "django.db.models".parse()?) => ImportMetadata{
                     line_number: 2,
                     is_typechecking: false,
                 },

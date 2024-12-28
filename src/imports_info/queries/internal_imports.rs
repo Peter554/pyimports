@@ -117,7 +117,7 @@ impl<'a> InternalImportsQueries<'a> {
         to: PackageItemTarget,
     ) -> Result<Option<Vec<PackageItemToken>>> {
         let to = match to {
-            PackageItemTarget::Single(token) => hashset! {token},
+            PackageItemTarget::One(token) => hashset! {token},
             PackageItemTarget::Many(tokens) => tokens,
         };
 
@@ -390,7 +390,7 @@ from testpackage import books",
         assert_eq!(
             imports_info
                 .internal_imports()
-                .get_shortest_path(a, PackageItemTarget::Single(e))?,
+                .get_shortest_path(a, PackageItemTarget::One(e))?,
             Some(vec![a, c, e])
         );
 
