@@ -238,6 +238,10 @@ impl PackageInfo {
         let root_pypath = &self.get_root().pypath;
         root_pypath.contains(pypath)
     }
+
+    pub fn pypath_is_external(&self, pypath: &PyPath) -> bool {
+        !self.pypath_is_internal(pypath)
+    }
 }
 
 #[cfg(test)]
@@ -329,6 +333,30 @@ mod tests {
         assert_eq!(
             package_info.pypath_is_internal(&"django.db.models".into()),
             false
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_pypath_is_external() -> Result<()> {
+        let test_package = testpackage! {
+            "__init__.py" => ""
+        };
+
+        let package_info = PackageInfo::build(test_package.path())?;
+
+        assert_eq!(
+            package_info.pypath_is_external(&"testpackage".into()),
+            false
+        );
+        assert_eq!(
+            package_info.pypath_is_external(&"testpackage.foo".into()),
+            false
+        );
+        assert_eq!(
+            package_info.pypath_is_external(&"django.db.models".into()),
+            true
         );
 
         Ok(())

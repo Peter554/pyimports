@@ -44,25 +44,14 @@ impl PyPath {
         Ok(s.replace("/", ".").into())
     }
 
-    pub fn contains(&self, other: &PyPath) -> bool {
-        self == other || other.s.starts_with(&(self.s.clone() + "."))
-    }
-
-    pub fn is_contained_by(&self, other: &PyPath) -> bool {
-        other.contains(self)
-    }
-
     pub fn is_relative(&self) -> bool {
         self.s.starts_with(".")
     }
 
-    pub fn parent(&self) -> Self {
-        let mut v = self.s.split(".").collect::<Vec<_>>();
-        v.pop();
-        PyPath { s: v.join(".") }
-    }
-
     pub fn resolve_relative(&self, path: &Path, root_path: &Path) -> Self {
+        if !self.is_relative() {
+            panic!()
+        }
         let trimmed_pypath = self.s.trim_start_matches(".");
         let base_pypath = {
             let n = self.s.len() - trimmed_pypath.len();
@@ -75,5 +64,22 @@ impl PyPath {
         PyPath {
             s: base_pypath.s + "." + trimmed_pypath,
         }
+    }
+
+    pub fn contains(&self, other: &PyPath) -> bool {
+        if self.is_relative() || other.is_relative() {
+            panic!()
+        }
+        self == other || other.s.starts_with(&(self.s.clone() + "."))
+    }
+
+    pub fn is_contained_by(&self, other: &PyPath) -> bool {
+        other.contains(self)
+    }
+
+    pub fn parent(&self) -> Self {
+        let mut v = self.s.split(".").collect::<Vec<_>>();
+        v.pop();
+        PyPath { s: v.join(".") }
     }
 }
