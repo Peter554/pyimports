@@ -3,7 +3,7 @@
 mod errors;
 mod imports_info;
 mod package_info;
-mod utils;
+mod pypath;
 
 // TODO: Use #[cfg(test)] here, but still need
 // a way to access the testutils from doctests.
@@ -19,3 +19,4 @@ pub use imports_info::{
 pub use package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
+pub use pypath::PyPath;

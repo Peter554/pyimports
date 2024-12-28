@@ -5,11 +5,11 @@ use rustpython_parser::{self, ast::Stmt, source_code::LinearLocator};
 use std::{fs, path::Path};
 
 use crate::errors::Error;
-use crate::utils::path_to_pypath;
+use crate::PyPath;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RawImport {
-    pub pypath: String,
+    pub pypath: PyPath,
     pub line_number: usize,
     pub is_typechecking: bool,
 }
@@ -54,17 +54,8 @@ pub fn resolve_relative_imports(
 ) -> Result<Vec<RawImport>> {
     let mut imports = imports.clone();
     for import in imports.iter_mut() {
-        if import.pypath.starts_with(".") {
-            let trimmed_pypath = import.pypath.trim_start_matches(".");
-            let base_pypath = {
-                let n = import.pypath.len() - trimmed_pypath.len();
-                let mut base_path = path;
-                for _ in 0..n {
-                    base_path = base_path.parent().unwrap();
-                }
-                path_to_pypath(base_path, root_path).unwrap()
-            };
-            import.pypath = base_pypath + "." + trimmed_pypath;
+        if import.pypath.is_relative() {
+            import.pypath = import.pypath.resolve_relative(path, root_path);
         }
     }
     Ok(imports)
@@ -91,7 +82,7 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
                 for name in stmt.names.iter() {
                     let location = self.locator.locate(name.range.start());
                     self.imports.push(RawImport {
-                        pypath: name.name.to_string(),
+                        pypath: name.name.to_string().into(),
                         line_number: location.row.to_usize(),
                         is_typechecking: context.is_typechecking,
                     });
@@ -113,7 +104,7 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
                 for name in stmt.names.iter() {
                     let location = self.locator.locate(name.range.start());
                     self.imports.push(RawImport {
-                        pypath: prefix.clone() + name.name.as_ref(),
+                        pypath: (prefix.clone() + name.name.as_ref()).into(),
                         line_number: location.row.to_usize(),
                         is_typechecking: context.is_typechecking,
                     });

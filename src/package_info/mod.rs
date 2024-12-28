@@ -8,8 +8,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::utils::path_to_pypath;
 use crate::Error;
+use crate::PyPath;
 
 new_key_type! { pub struct PackageToken; }
 new_key_type! { pub struct ModuleToken; }
@@ -17,7 +17,7 @@ new_key_type! { pub struct ModuleToken; }
 #[derive(Debug, Clone)]
 pub struct Package {
     pub path: PathBuf,
-    pub pypath: String,
+    pub pypath: PyPath,
     //
     pub token: PackageToken,
     pub parent: Option<PackageToken>,
@@ -33,7 +33,7 @@ impl Package {
         path: &Path,
         root_path: &Path,
     ) -> Package {
-        let pypath = path_to_pypath(path, root_path).unwrap();
+        let pypath = PyPath::from_path(path, root_path).unwrap();
         Package {
             token,
             parent: parent_token,
@@ -49,7 +49,7 @@ impl Package {
 #[derive(Debug, Clone)]
 pub struct Module {
     pub path: PathBuf,
-    pub pypath: String,
+    pub pypath: PyPath,
     pub is_init: bool,
     //
     pub token: ModuleToken,
@@ -63,11 +63,11 @@ impl Module {
         path: &Path,
         root_path: &Path,
     ) -> Module {
-        let pypath = &path_to_pypath(path, root_path).unwrap();
+        let pypath = PyPath::from_path(path, root_path).unwrap();
         Module {
             token,
             parent: parent_token,
-            pypath: pypath.to_string(),
+            pypath,
             path: path.to_path_buf(),
             is_init: path.file_name().unwrap().to_str().unwrap() == "__init__.py",
         }
@@ -80,9 +80,9 @@ pub struct PackageInfo {
     pub(crate) packages: SlotMap<PackageToken, Package>,
     pub(crate) modules: SlotMap<ModuleToken, Module>,
     pub(crate) packages_by_path: HashMap<PathBuf, PackageToken>,
-    pub(crate) packages_by_pypath: HashMap<String, PackageToken>,
+    pub(crate) packages_by_pypath: HashMap<PyPath, PackageToken>,
     pub(crate) modules_by_path: HashMap<PathBuf, ModuleToken>,
-    pub(crate) modules_by_pypath: HashMap<String, ModuleToken>,
+    pub(crate) modules_by_pypath: HashMap<PyPath, ModuleToken>,
 }
 
 #[derive(Debug, Clone)]
@@ -186,7 +186,7 @@ impl PackageInfo {
         let root =
             packages.insert_with_key(|token| Package::new(token, None, root_path, root_path));
         packages_by_path.insert(root_path.to_path_buf(), root);
-        packages_by_pypath.insert(path_to_pypath(root_path, root_path)?, root);
+        packages_by_pypath.insert(PyPath::from_path(root_path, root_path)?, root);
 
         let fs_items = filesystem::DirectoryReader::new()
             .exclude_hidden_items()
@@ -204,7 +204,7 @@ impl PackageInfo {
                     let parent = packages.get_mut(*parent_token).unwrap();
                     parent.packages.insert(token);
                     packages_by_path.insert(path.clone(), token);
-                    packages_by_pypath.insert(path_to_pypath(&path, root_path)?, token);
+                    packages_by_pypath.insert(PyPath::from_path(&path, root_path)?, token);
                 }
                 filesystem::FsItem::File { path } => {
                     let parent_token = packages_by_path.get(path.parent().unwrap()).unwrap();
@@ -218,7 +218,7 @@ impl PackageInfo {
                         parent.init_module = Some(token);
                     }
                     modules_by_path.insert(path.clone(), token);
-                    modules_by_pypath.insert(path_to_pypath(&path, root_path)?, token);
+                    modules_by_pypath.insert(PyPath::from_path(&path, root_path)?, token);
                 }
             }
         }
@@ -234,9 +234,9 @@ impl PackageInfo {
         })
     }
 
-    pub fn pypath_is_internal(&self, pypath: &str) -> bool {
-        let root_pypath = self.get_root().pypath.clone();
-        pypath == root_pypath || pypath.starts_with(&(root_pypath + "."))
+    pub fn pypath_is_internal(&self, pypath: &PyPath) -> bool {
+        let root_pypath = &self.get_root().pypath;
+        root_pypath.contains(pypath)
     }
 }
 
@@ -259,26 +259,29 @@ mod tests {
 
         let package_info = PackageInfo::build(test_package.path())?;
 
-        let root_package_token = *package_info.packages_by_pypath.get("testpackage").unwrap();
+        let root_package_token = *package_info
+            .packages_by_pypath
+            .get(&"testpackage".into())
+            .unwrap();
         let root_package_init_token = *package_info
             .modules_by_pypath
-            .get("testpackage.__init__")
+            .get(&"testpackage.__init__".into())
             .unwrap();
         let main_token = *package_info
             .modules_by_pypath
-            .get("testpackage.main")
+            .get(&"testpackage.main".into())
             .unwrap();
         let colors_package_token = *package_info
             .packages_by_pypath
-            .get("testpackage.colors")
+            .get(&"testpackage.colors".into())
             .unwrap();
         let colors_package_init_token = *package_info
             .modules_by_pypath
-            .get("testpackage.colors.__init__")
+            .get(&"testpackage.colors.__init__".into())
             .unwrap();
         let red_token = *package_info
             .modules_by_pypath
-            .get("testpackage.colors.red")
+            .get(&"testpackage.colors.red".into())
             .unwrap();
 
         let root_package = package_info.packages.get(root_package_token).unwrap();
@@ -318,9 +321,15 @@ mod tests {
 
         let package_info = PackageInfo::build(test_package.path())?;
 
-        assert_eq!(package_info.pypath_is_internal("testpackage"), true);
-        assert_eq!(package_info.pypath_is_internal("testpackage.foo"), true);
-        assert_eq!(package_info.pypath_is_internal("django.db.models"), false);
+        assert_eq!(package_info.pypath_is_internal(&"testpackage".into()), true);
+        assert_eq!(
+            package_info.pypath_is_internal(&"testpackage.foo".into()),
+            true
+        );
+        assert_eq!(
+            package_info.pypath_is_internal(&"django.db.models".into()),
+            false
+        );
 
         Ok(())
     }

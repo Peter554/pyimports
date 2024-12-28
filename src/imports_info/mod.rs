@@ -11,7 +11,7 @@ pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
-    Error,
+    Error, PyPath,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,8 +34,8 @@ pub struct ImportsInfo {
     reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     internal_imports_metadata: HashMap<(PackageItemToken, PackageItemToken), ImportMetadata>,
     //
-    external_imports: HashMap<PackageItemToken, HashSet<String>>,
-    external_imports_metadata: HashMap<(PackageItemToken, String), ImportMetadata>,
+    external_imports: HashMap<PackageItemToken, HashSet<PyPath>>,
+    external_imports_metadata: HashMap<(PackageItemToken, PyPath), ImportMetadata>,
 }
 
 #[derive(Debug, Clone)]
@@ -121,7 +121,7 @@ impl ImportsInfo {
                             // An imported module.
                             item
                         } else if let Some(item) = package_info
-                            .get_item_by_pypath(&strip_final_part(&raw_import.pypath))
+                            .get_item_by_pypath(&raw_import.pypath.parent())
                             .map(|item| item.token())
                         {
                             // An imported module member.
@@ -168,7 +168,7 @@ impl ImportsInfo {
 
     pub fn exclude_external_imports(
         &self,
-        imports: impl IntoIterator<Item = (PackageItemToken, String)>,
+        imports: impl IntoIterator<Item = (PackageItemToken, PyPath)>,
     ) -> Result<Self> {
         let mut imports_info = self.clone();
         for (from, to) in imports {
@@ -257,7 +257,7 @@ impl ImportsInfo {
     fn add_external_import(
         &mut self,
         from: PackageItemToken,
-        to: String,
+        to: PyPath,
         metadata: Option<ImportMetadata>,
     ) -> Result<()> {
         self.external_imports
@@ -270,7 +270,7 @@ impl ImportsInfo {
         Ok(())
     }
 
-    fn remove_external_import(&mut self, from: PackageItemToken, to: String) -> Result<()> {
+    fn remove_external_import(&mut self, from: PackageItemToken, to: PyPath) -> Result<()> {
         if self.external_imports.contains_key(&from) {
             self.external_imports.entry(from).or_default().remove(&to);
         };
@@ -314,12 +314,6 @@ fn get_all_raw_imports(
     Ok(all_raw_imports)
 }
 
-fn strip_final_part(pypath: &str) -> String {
-    let mut o = pypath.split(".").collect::<Vec<_>>();
-    o.pop();
-    o.join(".")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,26 +341,10 @@ from django.db import models
         let package_info = PackageInfo::build(test_package.path())?;
         let imports_info = ImportsInfo::build(package_info)?;
 
-        let root_package = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage")
-            .unwrap()
-            .token();
-        let root_package_init = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.__init__")
-            .unwrap()
-            .token();
-        let a = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.a")
-            .unwrap()
-            .token();
-        let b = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.b")
-            .unwrap()
-            .token();
+        let root_package = imports_info._item("testpackage");
+        let root_package_init = imports_info._item("testpackage.__init__");
+        let a = imports_info._item("testpackage.a");
+        let b = imports_info._item("testpackage.b");
 
         assert_eq!(
             imports_info.internal_imports,
@@ -443,26 +421,10 @@ from testpackage import b
         let package_info = PackageInfo::build(test_package.path())?;
         let imports_info = ImportsInfo::build(package_info)?;
 
-        let root_package = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage")
-            .unwrap()
-            .token();
-        let root_package_init = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.__init__")
-            .unwrap()
-            .token();
-        let a = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.a")
-            .unwrap()
-            .token();
-        let b = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.b")
-            .unwrap()
-            .token();
+        let root_package = imports_info._item("testpackage");
+        let root_package_init = imports_info._item("testpackage.__init__");
+        let a = imports_info._item("testpackage.a");
+        let b = imports_info._item("testpackage.b");
 
         assert_eq!(
             imports_info.internal_imports,
@@ -551,26 +513,10 @@ if TYPE_CHECKING:
         let package_info = PackageInfo::build(test_package.path())?;
         let imports_info = ImportsInfo::build(package_info)?;
 
-        let root_package = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage")
-            .unwrap()
-            .token();
-        let root_package_init = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.__init__")
-            .unwrap()
-            .token();
-        let a = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.a")
-            .unwrap()
-            .token();
-        let b = imports_info
-            .package_info
-            .get_item_by_pypath("testpackage.b")
-            .unwrap()
-            .token();
+        let root_package = imports_info._item("testpackage");
+        let root_package_init = imports_info._item("testpackage.__init__");
+        let a = imports_info._item("testpackage.a");
+        let b = imports_info._item("testpackage.b");
 
         assert_eq!(
             imports_info.internal_imports,
