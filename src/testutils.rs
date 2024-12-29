@@ -61,9 +61,7 @@ macro_rules! testpackage {
 
 impl PackageInfo {
     pub(crate) fn _item(&self, pypath: &str) -> PackageItemToken {
-        self.get_item_by_pypath(&pypath.parse().unwrap())
-            .unwrap()
-            .token()
+        self.get_item_by_pypath(pypath).unwrap().unwrap().token()
     }
 }
 

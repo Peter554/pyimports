@@ -1,10 +1,11 @@
 use anyhow::Result;
+use std::borrow::Borrow;
 use std::path::Path;
 
 use crate::package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
-use crate::{AbsolutePypath, Error};
+use crate::{Error, IntoPypath};
 
 impl PackageInfo {
     pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
@@ -17,13 +18,18 @@ impl PackageInfo {
         }
     }
 
-    pub fn get_item_by_pypath(&self, pypath: &AbsolutePypath) -> Option<PackageItem> {
-        if let Some(package) = self.packages_by_pypath.get(pypath) {
-            Some(self.get_package(*package).unwrap().into())
+    pub fn get_item_by_pypath<T: IntoPypath>(
+        &self,
+        pypath: T,
+    ) -> Result<Option<PackageItem>> {
+        let pypath = pypath.into_pypath()?;
+        if let Some(package) = self.packages_by_pypath.get(pypath.borrow()) {
+            Ok(Some(self.get_package(*package).unwrap().into()))
         } else {
-            self.modules_by_pypath
-                .get(pypath)
-                .map(|module| self.get_module(*module).unwrap().into())
+            Ok(self
+                .modules_by_pypath
+                .get(pypath.borrow())
+                .map(|module| self.get_module(*module).unwrap().into()))
         }
     }
 

@@ -5,12 +5,13 @@ use anyhow::Result;
 use core::fmt;
 use slotmap::{new_key_type, SlotMap};
 use std::{
+    borrow::Borrow,
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
-use crate::AbsolutePypath;
 use crate::Error;
+use crate::{IntoPypath, Pypath};
 
 new_key_type! {
     /// A token used to identify a package.
@@ -28,7 +29,7 @@ pub struct Package {
     /// The absolute filesystem path to this package.
     pub path: PathBuf,
     /// The absolute pypath to this package.
-    pub pypath: AbsolutePypath,
+    pub pypath: Pypath,
 
     /// This package.
     pub token: PackageToken,
@@ -55,7 +56,7 @@ impl Package {
         path: &Path,
         root_path: &Path,
     ) -> Package {
-        let pypath = AbsolutePypath::from_path(path, root_path).unwrap();
+        let pypath = Pypath::from_path(path, root_path).unwrap();
         Package {
             token,
             parent: parent_token,
@@ -74,7 +75,7 @@ pub struct Module {
     /// The absolute filesystem path to this module.
     pub path: PathBuf,
     /// The absolute pypath to this module.
-    pub pypath: AbsolutePypath,
+    pub pypath: Pypath,
     /// True if this is an init module.
     pub is_init: bool,
 
@@ -97,7 +98,7 @@ impl Module {
         path: &Path,
         root_path: &Path,
     ) -> Module {
-        let pypath = AbsolutePypath::from_path(path, root_path).unwrap();
+        let pypath = Pypath::from_path(path, root_path).unwrap();
         Module {
             token,
             parent: parent_token,
@@ -149,9 +150,9 @@ pub struct PackageInfo {
     pub(crate) packages: SlotMap<PackageToken, Package>,
     pub(crate) modules: SlotMap<ModuleToken, Module>,
     pub(crate) packages_by_path: HashMap<PathBuf, PackageToken>,
-    pub(crate) packages_by_pypath: HashMap<AbsolutePypath, PackageToken>,
+    pub(crate) packages_by_pypath: HashMap<Pypath, PackageToken>,
     pub(crate) modules_by_path: HashMap<PathBuf, ModuleToken>,
-    pub(crate) modules_by_pypath: HashMap<AbsolutePypath, ModuleToken>,
+    pub(crate) modules_by_pypath: HashMap<Pypath, ModuleToken>,
 }
 
 /// A unified representation of an item within a package.
@@ -287,7 +288,7 @@ impl PackageInfo {
         let root =
             packages.insert_with_key(|token| Package::new(token, None, root_path, root_path));
         packages_by_path.insert(root_path.to_path_buf(), root);
-        packages_by_pypath.insert(AbsolutePypath::from_path(root_path, root_path)?, root);
+        packages_by_pypath.insert(Pypath::from_path(root_path, root_path)?, root);
 
         let fs_items = filesystem::DirectoryReader::new()
             .exclude_hidden_items()
@@ -305,7 +306,7 @@ impl PackageInfo {
                     let parent = packages.get_mut(*parent_token).unwrap();
                     parent.packages.insert(token);
                     packages_by_path.insert(path.clone(), token);
-                    packages_by_pypath.insert(AbsolutePypath::from_path(&path, root_path)?, token);
+                    packages_by_pypath.insert(Pypath::from_path(&path, root_path)?, token);
                 }
                 filesystem::FsItem::File { path } => {
                     let parent_token = packages_by_path.get(path.parent().unwrap()).unwrap();
@@ -319,7 +320,7 @@ impl PackageInfo {
                         parent.init_module = Some(token);
                     }
                     modules_by_path.insert(path.clone(), token);
-                    modules_by_pypath.insert(AbsolutePypath::from_path(&path, root_path)?, token);
+                    modules_by_pypath.insert(Pypath::from_path(&path, root_path)?, token);
                 }
             }
         }
@@ -347,14 +348,15 @@ impl PackageInfo {
     ///
     /// let package_info = PackageInfo::build(test_package.path())?;
     ///
-    /// assert!(package_info.pypath_is_internal(&"testpackage.foo".parse()?));
-    /// assert!(!package_info.pypath_is_internal(&"django.db.models".parse()?));
+    /// assert!(package_info.pypath_is_internal("testpackage.foo")?);
+    /// assert!(!package_info.pypath_is_internal("django.db.models")?);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn pypath_is_internal(&self, pypath: &AbsolutePypath) -> bool {
+    pub fn pypath_is_internal<T: IntoPypath>(&self, pypath: T) -> Result<bool> {
+        let pypath = pypath.into_pypath()?;
         let root_pypath = &self.get_root().pypath;
-        root_pypath.contains(pypath)
+        Ok(root_pypath.contains(pypath.borrow()))
     }
 
     /// Checks whether the passed pypath is external.
@@ -369,13 +371,13 @@ impl PackageInfo {
     ///
     /// let package_info = PackageInfo::build(test_package.path())?;
     ///
-    /// assert!(!package_info.pypath_is_external(&"testpackage.foo".parse()?));
-    /// assert!(package_info.pypath_is_external(&"django.db.models".parse()?));
+    /// assert!(!package_info.pypath_is_external("testpackage.foo")?);
+    /// assert!(package_info.pypath_is_external("django.db.models")?);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn pypath_is_external(&self, pypath: &AbsolutePypath) -> bool {
-        !self.pypath_is_internal(pypath)
+    pub fn pypath_is_external<T: IntoPypath>(&self, pypath: T) -> Result<bool> {
+        Ok(!self.pypath_is_internal(pypath)?)
     }
 }
 
@@ -460,9 +462,9 @@ mod tests {
 
         let package_info = PackageInfo::build(test_package.path())?;
 
-        assert!(package_info.pypath_is_internal(&"testpackage".parse()?));
-        assert!(package_info.pypath_is_internal(&"testpackage.foo".parse()?));
-        assert!(!package_info.pypath_is_internal(&"django.db.models".parse()?));
+        assert!(package_info.pypath_is_internal("testpackage".parse::<Pypath>()?)?);
+        assert!(package_info.pypath_is_internal("testpackage.foo")?);
+        assert!(!package_info.pypath_is_internal("django.db.models")?);
 
         Ok(())
     }
@@ -475,9 +477,9 @@ mod tests {
 
         let package_info = PackageInfo::build(test_package.path())?;
 
-        assert!(!package_info.pypath_is_external(&"testpackage".parse()?),);
-        assert!(!package_info.pypath_is_external(&"testpackage.foo".parse()?),);
-        assert!(package_info.pypath_is_external(&"django.db.models".parse()?),);
+        assert!(!package_info.pypath_is_external("testpackage")?);
+        assert!(!package_info.pypath_is_external("testpackage.foo")?);
+        assert!(package_info.pypath_is_external("django.db.models")?);
 
         Ok(())
     }

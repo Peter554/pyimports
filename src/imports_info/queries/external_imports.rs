@@ -1,23 +1,28 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    borrow::Borrow,
+    collections::{HashMap, HashSet},
+};
 
 use anyhow::Result;
 
-use crate::{AbsolutePypath, Error, ImportMetadata, ImportsInfo, PackageItemToken};
+use crate::{Error, ImportMetadata, ImportsInfo, IntoPypath, PackageItemToken, Pypath};
 
 pub struct ExternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
 }
 
 impl<'a> ExternalImportsQueries<'a> {
-    pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<AbsolutePypath>> {
+    pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<Pypath>> {
         self.imports_info.external_imports.clone()
     }
 
-    pub fn direct_import_exists(
+    pub fn direct_import_exists<T: IntoPypath>(
         &self,
         from: PackageItemToken,
-        to: &AbsolutePypath,
+        to: T,
     ) -> Result<bool> {
+        let to = to.into_pypath()?;
+
         self.imports_info.package_info.get_item(from)?;
 
         Ok(self
@@ -25,13 +30,13 @@ impl<'a> ExternalImportsQueries<'a> {
             .external_imports
             .get(&from)
             .unwrap()
-            .contains(to))
+            .contains(to.borrow()))
     }
 
     pub fn get_items_directly_imported_by(
         &'a self,
         item: PackageItemToken,
-    ) -> Result<HashSet<AbsolutePypath>> {
+    ) -> Result<HashSet<Pypath>> {
         self.imports_info.package_info.get_item(item)?;
 
         Ok(self
@@ -42,16 +47,17 @@ impl<'a> ExternalImportsQueries<'a> {
             .clone())
     }
 
-    pub fn get_import_metadata(
+    pub fn get_import_metadata<T: IntoPypath>(
         &'a self,
         from: PackageItemToken,
-        to: &AbsolutePypath,
+        to: T,
     ) -> Result<Option<&'a ImportMetadata>> {
-        if self.direct_import_exists(from, to)? {
+        let to = to.into_pypath()?;
+        if self.direct_import_exists(from, to.borrow())? {
             Ok(self
                 .imports_info
                 .external_imports_metadata
-                .get(&(from, to.to_owned())))
+                .get(&(from, to.borrow().clone())))
         } else {
             Err(Error::NoSuchImport)?
         }
@@ -127,8 +133,7 @@ mod tests {
         let root_package_init = imports_info._item("testpackage.__init__");
 
         let external_imports = imports_info.external_imports();
-        let metadata =
-            external_imports.get_import_metadata(root_package_init, &"pydantic".parse()?)?;
+        let metadata = external_imports.get_import_metadata(root_package_init, "pydantic")?;
 
         assert_eq!(
             metadata,

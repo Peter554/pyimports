@@ -10,7 +10,7 @@ pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
-    AbsolutePypath, Error,
+    Pypath, Error,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,8 +35,8 @@ pub struct ImportsInfo {
     reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     internal_imports_metadata: HashMap<(PackageItemToken, PackageItemToken), ImportMetadata>,
     //
-    external_imports: HashMap<PackageItemToken, HashSet<AbsolutePypath>>,
-    external_imports_metadata: HashMap<(PackageItemToken, AbsolutePypath), ImportMetadata>,
+    external_imports: HashMap<PackageItemToken, HashSet<Pypath>>,
+    external_imports_metadata: HashMap<(PackageItemToken, Pypath), ImportMetadata>,
 }
 
 #[derive(Debug, Clone)]
@@ -113,16 +113,16 @@ impl ImportsInfo {
                     is_typechecking: raw_import.is_typechecking,
                 };
 
-                if package_info.pypath_is_internal(&raw_import.pypath) {
+                if package_info.pypath_is_internal(&raw_import.pypath)? {
                     let internal_item = {
                         if let Some(item) = package_info
-                            .get_item_by_pypath(&raw_import.pypath)
+                            .get_item_by_pypath(&raw_import.pypath)?
                             .map(|item| item.token())
                         {
                             // An imported module.
                             item
                         } else if let Some(item) = package_info
-                            .get_item_by_pypath(&raw_import.pypath.parent())
+                            .get_item_by_pypath(&raw_import.pypath.parent())?
                             .map(|item| item.token())
                         {
                             // An imported module member.
@@ -169,7 +169,7 @@ impl ImportsInfo {
 
     pub fn exclude_external_imports(
         &self,
-        imports: impl IntoIterator<Item = (PackageItemToken, AbsolutePypath)>,
+        imports: impl IntoIterator<Item = (PackageItemToken, Pypath)>,
     ) -> Result<Self> {
         let mut imports_info = self.clone();
         for (from, to) in imports {
@@ -258,7 +258,7 @@ impl ImportsInfo {
     fn add_external_import(
         &mut self,
         from: PackageItemToken,
-        to: AbsolutePypath,
+        to: Pypath,
         metadata: Option<ImportMetadata>,
     ) -> Result<()> {
         self.external_imports
@@ -271,7 +271,7 @@ impl ImportsInfo {
         Ok(())
     }
 
-    fn remove_external_import(&mut self, from: PackageItemToken, to: AbsolutePypath) -> Result<()> {
+    fn remove_external_import(&mut self, from: PackageItemToken, to: Pypath) -> Result<()> {
         if self.external_imports.contains_key(&from) {
             self.external_imports.entry(from).or_default().remove(&to);
         };
@@ -282,7 +282,7 @@ impl ImportsInfo {
 
 #[derive(Debug)]
 struct ResolvedRawImport {
-    pypath: AbsolutePypath,
+    pypath: Pypath,
     line_number: usize,
     is_typechecking: bool,
 }

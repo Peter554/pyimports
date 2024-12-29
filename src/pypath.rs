@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
@@ -9,66 +10,65 @@ use regex::Regex;
 use crate::Error;
 
 lazy_static! {
-    static ref ABSOLUTE_PYPATH_REGEX: Regex = Regex::new(r"^\w+(\.\w+)*$").unwrap();
+    static ref PYPATH_REGEX: Regex = Regex::new(r"^\w+(\.\w+)*$").unwrap();
 }
 
-/// A dotted path to a python module/module-member.
-/// An absolute path (not a relative path).
+/// The absolute dotted path to a python package/module/member.
 ///
 /// # Example
 ///
 /// ```
-/// use pyimports::AbsolutePypath;
+/// use pyimports::Pypath;
 ///
-/// let result  = "foo.bar".parse::<AbsolutePypath>();
+/// let result  = "foo.bar".parse::<Pypath>();
 /// assert!(result.is_ok());
 ///
 /// // Relative paths are not allowed.
-/// let result  = ".foo.bar".parse::<AbsolutePypath>();
+/// let result  = ".foo.bar".parse::<Pypath>();
 /// assert!(result.is_err());
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AbsolutePypath {
+pub struct Pypath {
     pub(crate) s: String,
 }
 
-impl AbsolutePypath {
-    pub(crate) fn new(s: &str) -> AbsolutePypath {
-        AbsolutePypath { s: s.to_string() }
+impl Pypath {
+    pub(crate) fn new(s: &str) -> Pypath {
+        Pypath { s: s.to_string() }
     }
 }
 
-impl FromStr for AbsolutePypath {
+impl FromStr for Pypath {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        if ABSOLUTE_PYPATH_REGEX.is_match(s) {
-            Ok(AbsolutePypath::new(s))
+        if PYPATH_REGEX.is_match(s) {
+            Ok(Pypath::new(s))
         } else {
             Err(Error::InvalidPypath)
         }
     }
 }
 
-impl From<AbsolutePypath> for String {
-    fn from(value: AbsolutePypath) -> Self {
+impl From<Pypath> for String {
+    fn from(value: Pypath) -> Self {
         value.s
     }
 }
 
-impl<'a> From<&'a AbsolutePypath> for &'a str {
-    fn from(value: &'a AbsolutePypath) -> Self {
+impl<'a> From<&'a Pypath> for &'a str {
+    fn from(value: &'a Pypath) -> Self {
         &value.s
     }
 }
 
-impl fmt::Display for AbsolutePypath {
+impl fmt::Display for Pypath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.s)
     }
 }
 
-impl AbsolutePypath {
+impl Pypath {
     pub(crate) fn from_path(path: &Path, root_path: &Path) -> Result<Self> {
         let path = path.strip_prefix(root_path.parent().unwrap())?;
         let mut s = path.to_str().unwrap();
@@ -76,7 +76,7 @@ impl AbsolutePypath {
             s = s.strip_suffix(".py").unwrap();
         }
         let s = s.replace("/", ".");
-        Ok(AbsolutePypath::new(&s))
+        Ok(Pypath::new(&s))
     }
 
     /// Returns true if the passed pypath is contained by this pypath.
@@ -84,15 +84,15 @@ impl AbsolutePypath {
     /// # Example
     ///
     /// ```
-    /// use pyimports::AbsolutePypath;
+    /// use pyimports::Pypath;
     ///
-    /// let foo_bar: AbsolutePypath = "foo.bar".parse().unwrap();
-    /// let foo_bar_baz: AbsolutePypath = "foo.bar.baz".parse().unwrap();
+    /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
+    /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
     ///
     /// assert!(foo_bar.contains(&foo_bar_baz));
     /// assert!(!foo_bar_baz.contains(&foo_bar));
     /// ```
-    pub fn contains(&self, other: &AbsolutePypath) -> bool {
+    pub fn contains(&self, other: &Pypath) -> bool {
         self == other || other.s.starts_with(&(self.s.clone() + "."))
     }
 
@@ -101,15 +101,15 @@ impl AbsolutePypath {
     /// # Example
     ///
     /// ```
-    /// use pyimports::AbsolutePypath;
+    /// use pyimports::Pypath;
     ///
-    /// let foo_bar: AbsolutePypath = "foo.bar".parse().unwrap();
-    /// let foo_bar_baz: AbsolutePypath = "foo.bar.baz".parse().unwrap();
+    /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
+    /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
     ///
     /// assert!(!foo_bar.is_contained_by(&foo_bar_baz));
     /// assert!(foo_bar_baz.is_contained_by(&foo_bar));
     /// ```
-    pub fn is_contained_by(&self, other: &AbsolutePypath) -> bool {
+    pub fn is_contained_by(&self, other: &Pypath) -> bool {
         other.contains(self)
     }
 
@@ -118,17 +118,42 @@ impl AbsolutePypath {
     /// # Example
     ///
     /// ```
-    /// use pyimports::AbsolutePypath;
+    /// use pyimports::Pypath;
     ///
-    /// let foo_bar: AbsolutePypath = "foo.bar".parse().unwrap();
-    /// let foo_bar_baz: AbsolutePypath = "foo.bar.baz".parse().unwrap();
+    /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
+    /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
     ///
     ///assert!(foo_bar_baz.parent() == foo_bar);
     /// ```
     pub fn parent(&self) -> Self {
         let mut v = self.s.split(".").collect::<Vec<_>>();
         v.pop();
-        AbsolutePypath { s: v.join(".") }
+        Pypath { s: v.join(".") }
+    }
+}
+
+/// A trait that can be used as a bound to generic functions that want
+/// to accept a Pypath, or any type parseable as a Pypath.
+pub trait IntoPypath {
+    fn into_pypath(&self) -> Result<impl Borrow<Pypath>>;
+}
+
+impl IntoPypath for Pypath {
+    fn into_pypath(&self) -> Result<impl Borrow<Pypath>> {
+        Ok(self)
+    }
+}
+
+impl IntoPypath for &Pypath {
+    fn into_pypath(&self) -> Result<impl Borrow<Pypath>> {
+        Ok(*self)
+    }
+}
+
+impl IntoPypath for &str {
+    fn into_pypath(&self) -> Result<impl Borrow<Pypath>> {
+        let pypath = self.parse::<Pypath>()?;
+        Ok(pypath)
     }
 }
 
@@ -140,15 +165,15 @@ mod tests {
 
     #[test]
     fn test_pypath_from_str() -> Result<()> {
-        assert!(AbsolutePypath::from_str("foo").is_ok());
-        assert!(AbsolutePypath::from_str("foo.bar").is_ok());
+        assert!(Pypath::from_str("foo").is_ok());
+        assert!(Pypath::from_str("foo.bar").is_ok());
 
         assert!(matches!(
-            AbsolutePypath::from_str(".foo.bar"),
+            Pypath::from_str(".foo.bar"),
             Err(Error::InvalidPypath)
         ));
         assert!(matches!(
-            AbsolutePypath::from_str("foo.bar."),
+            Pypath::from_str("foo.bar."),
             Err(Error::InvalidPypath)
         ));
 
@@ -157,34 +182,26 @@ mod tests {
 
     #[test]
     fn test_contains() -> Result<()> {
-        assert!(AbsolutePypath::new("foo.bar").contains(&AbsolutePypath::new("foo.bar")));
-        assert!(AbsolutePypath::new("foo.bar").contains(&AbsolutePypath::new("foo.bar.baz")));
-        assert!(!AbsolutePypath::new("foo.bar").contains(&AbsolutePypath::new("foo")));
+        assert!(Pypath::new("foo.bar").contains(&Pypath::new("foo.bar")));
+        assert!(Pypath::new("foo.bar").contains(&Pypath::new("foo.bar.baz")));
+        assert!(!Pypath::new("foo.bar").contains(&Pypath::new("foo")));
 
         Ok(())
     }
 
     #[test]
     fn test_contained_by() -> Result<()> {
-        assert!(AbsolutePypath::new("foo.bar").is_contained_by(&AbsolutePypath::new("foo.bar")));
-        assert!(
-            !AbsolutePypath::new("foo.bar").is_contained_by(&AbsolutePypath::new("foo.bar.baz"))
-        );
-        assert!(AbsolutePypath::new("foo.bar").is_contained_by(&AbsolutePypath::new("foo")));
+        assert!(Pypath::new("foo.bar").is_contained_by(&Pypath::new("foo.bar")));
+        assert!(!Pypath::new("foo.bar").is_contained_by(&Pypath::new("foo.bar.baz")));
+        assert!(Pypath::new("foo.bar").is_contained_by(&Pypath::new("foo")));
 
         Ok(())
     }
 
     #[test]
     fn test_parent() -> Result<()> {
-        assert_eq!(
-            AbsolutePypath::new("foo.bar.baz").parent(),
-            AbsolutePypath::new("foo.bar")
-        );
-        assert_eq!(
-            AbsolutePypath::new("foo.bar").parent(),
-            AbsolutePypath::new("foo")
-        );
+        assert_eq!(Pypath::new("foo.bar.baz").parent(), Pypath::new("foo.bar"));
+        assert_eq!(Pypath::new("foo.bar").parent(), Pypath::new("foo"));
 
         Ok(())
     }

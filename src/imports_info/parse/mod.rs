@@ -4,7 +4,7 @@ use anyhow::Result;
 use rustpython_parser::{self, ast::Stmt, source_code::LinearLocator};
 use std::{fs, path::Path};
 
-use crate::{errors::Error, AbsolutePypath};
+use crate::{errors::Error, Pypath};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct AbsoluteOrRelativePypath {
@@ -20,9 +20,9 @@ impl AbsoluteOrRelativePypath {
         self.s.starts_with(".")
     }
 
-    pub fn resolve_relative(&self, path: &Path, root_path: &Path) -> AbsolutePypath {
+    pub fn resolve_relative(&self, path: &Path, root_path: &Path) -> Pypath {
         if !self.is_relative() {
-            return AbsolutePypath { s: self.s.clone() };
+            return Pypath { s: self.s.clone() };
         }
         let trimmed_pypath = self.s.trim_start_matches(".");
         let base_pypath = {
@@ -31,9 +31,9 @@ impl AbsoluteOrRelativePypath {
             for _ in 0..n {
                 base_path = base_path.parent().unwrap();
             }
-            AbsolutePypath::from_path(base_path, root_path).unwrap()
+            Pypath::from_path(base_path, root_path).unwrap()
         };
-        AbsolutePypath {
+        Pypath {
             s: base_pypath.s + "." + trimmed_pypath,
         }
     }
@@ -344,29 +344,29 @@ else:
     struct RelativeImportsTestCase<'a> {
         path: &'a str,
         raw_pypath: &'a str,
-        expected: AbsolutePypath,
+        expected: Pypath,
     }
 
     #[parameterized(case={
         RelativeImportsTestCase {
             path: "foo.py",
             raw_pypath: ".bar",
-            expected:  AbsolutePypath::new("testpackage.bar")     
+            expected:  Pypath::new("testpackage.bar")     
         },
         RelativeImportsTestCase {
             path: "subpackage/foo.py",
             raw_pypath: "..bar",
-            expected:   AbsolutePypath::new("testpackage.bar")
+            expected:   Pypath::new("testpackage.bar")
         },
         RelativeImportsTestCase {
             path: "foo.py",
             raw_pypath: ".bar.ABC",
-            expected: AbsolutePypath::new("testpackage.bar.ABC")      
+            expected: Pypath::new("testpackage.bar.ABC")      
         },
         RelativeImportsTestCase {
             path: "subpackage/foo.py",
             raw_pypath: "..bar.ABC",
-            expected:   AbsolutePypath::new("testpackage.bar.ABC")   
+            expected:   Pypath::new("testpackage.bar.ABC")   
         },
     })]
     fn test_resolve_relative_imports(case: RelativeImportsTestCase<'_>) -> Result<()> {

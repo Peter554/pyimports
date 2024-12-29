@@ -20,4 +20,4 @@ pub use imports_info::{
 pub use package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
-pub use pypath::AbsolutePypath;
+pub use pypath::{IntoPypath, Pypath};

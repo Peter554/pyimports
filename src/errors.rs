@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use rustpython_parser::ParseError;
 use thiserror::Error;
 
-use crate::{AbsolutePypath, ModuleToken, PackageToken};
+use crate::{Pypath, ModuleToken, PackageToken};
 
 #[allow(missing_docs)]
 #[derive(Error, Debug, PartialEq)]
@@ -22,7 +22,7 @@ pub enum Error {
     },
 
     #[error("unknown internal import {0}")]
-    UnknownInternalImport(AbsolutePypath),
+    UnknownInternalImport(Pypath),
 
     #[error("no such import")]
     NoSuchImport,
