@@ -2,21 +2,21 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 
-use crate::{AbsolutePyPath, Error, ImportMetadata, ImportsInfo, PackageItemToken};
+use crate::{AbsolutePypath, Error, ImportMetadata, ImportsInfo, PackageItemToken};
 
 pub struct ExternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
 }
 
 impl<'a> ExternalImportsQueries<'a> {
-    pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<AbsolutePyPath>> {
+    pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<AbsolutePypath>> {
         self.imports_info.external_imports.clone()
     }
 
     pub fn direct_import_exists(
         &self,
         from: PackageItemToken,
-        to: &AbsolutePyPath,
+        to: &AbsolutePypath,
     ) -> Result<bool> {
         self.imports_info.package_info.get_item(from)?;
 
@@ -31,7 +31,7 @@ impl<'a> ExternalImportsQueries<'a> {
     pub fn get_items_directly_imported_by(
         &'a self,
         item: PackageItemToken,
-    ) -> Result<HashSet<AbsolutePyPath>> {
+    ) -> Result<HashSet<AbsolutePypath>> {
         self.imports_info.package_info.get_item(item)?;
 
         Ok(self
@@ -45,7 +45,7 @@ impl<'a> ExternalImportsQueries<'a> {
     pub fn get_import_metadata(
         &'a self,
         from: PackageItemToken,
-        to: &AbsolutePyPath,
+        to: &AbsolutePypath,
     ) -> Result<Option<&'a ImportMetadata>> {
         if self.direct_import_exists(from, to)? {
             Ok(self

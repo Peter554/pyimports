@@ -10,7 +10,7 @@ pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
-    AbsolutePyPath, Error,
+    AbsolutePypath, Error,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,8 +35,8 @@ pub struct ImportsInfo {
     reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     internal_imports_metadata: HashMap<(PackageItemToken, PackageItemToken), ImportMetadata>,
     //
-    external_imports: HashMap<PackageItemToken, HashSet<AbsolutePyPath>>,
-    external_imports_metadata: HashMap<(PackageItemToken, AbsolutePyPath), ImportMetadata>,
+    external_imports: HashMap<PackageItemToken, HashSet<AbsolutePypath>>,
+    external_imports_metadata: HashMap<(PackageItemToken, AbsolutePypath), ImportMetadata>,
 }
 
 #[derive(Debug, Clone)]
@@ -169,7 +169,7 @@ impl ImportsInfo {
 
     pub fn exclude_external_imports(
         &self,
-        imports: impl IntoIterator<Item = (PackageItemToken, AbsolutePyPath)>,
+        imports: impl IntoIterator<Item = (PackageItemToken, AbsolutePypath)>,
     ) -> Result<Self> {
         let mut imports_info = self.clone();
         for (from, to) in imports {
@@ -258,7 +258,7 @@ impl ImportsInfo {
     fn add_external_import(
         &mut self,
         from: PackageItemToken,
-        to: AbsolutePyPath,
+        to: AbsolutePypath,
         metadata: Option<ImportMetadata>,
     ) -> Result<()> {
         self.external_imports
@@ -271,7 +271,7 @@ impl ImportsInfo {
         Ok(())
     }
 
-    fn remove_external_import(&mut self, from: PackageItemToken, to: AbsolutePyPath) -> Result<()> {
+    fn remove_external_import(&mut self, from: PackageItemToken, to: AbsolutePypath) -> Result<()> {
         if self.external_imports.contains_key(&from) {
             self.external_imports.entry(from).or_default().remove(&to);
         };
@@ -282,7 +282,7 @@ impl ImportsInfo {
 
 #[derive(Debug)]
 struct ResolvedRawImport {
-    pypath: AbsolutePyPath,
+    pypath: AbsolutePypath,
     line_number: usize,
     is_typechecking: bool,
 }

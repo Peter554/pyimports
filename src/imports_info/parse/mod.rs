@@ -4,25 +4,25 @@ use anyhow::Result;
 use rustpython_parser::{self, ast::Stmt, source_code::LinearLocator};
 use std::{fs, path::Path};
 
-use crate::{errors::Error, AbsolutePyPath};
+use crate::{errors::Error, AbsolutePypath};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct AbsoluteOrRelativePyPath {
+pub(crate) struct AbsoluteOrRelativePypath {
     s: String,
 }
 
-impl AbsoluteOrRelativePyPath {
+impl AbsoluteOrRelativePypath {
     pub fn new(s: &str) -> Self {
-        AbsoluteOrRelativePyPath { s: s.to_string() }
+        AbsoluteOrRelativePypath { s: s.to_string() }
     }
 
     pub fn is_relative(&self) -> bool {
         self.s.starts_with(".")
     }
 
-    pub fn resolve_relative(&self, path: &Path, root_path: &Path) -> AbsolutePyPath {
+    pub fn resolve_relative(&self, path: &Path, root_path: &Path) -> AbsolutePypath {
         if !self.is_relative() {
-            return AbsolutePyPath { s: self.s.clone() };
+            return AbsolutePypath { s: self.s.clone() };
         }
         let trimmed_pypath = self.s.trim_start_matches(".");
         let base_pypath = {
@@ -31,9 +31,9 @@ impl AbsoluteOrRelativePyPath {
             for _ in 0..n {
                 base_path = base_path.parent().unwrap();
             }
-            AbsolutePyPath::from_path(base_path, root_path).unwrap()
+            AbsolutePypath::from_path(base_path, root_path).unwrap()
         };
-        AbsolutePyPath {
+        AbsolutePypath {
             s: base_pypath.s + "." + trimmed_pypath,
         }
     }
@@ -41,7 +41,7 @@ impl AbsoluteOrRelativePyPath {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RawImport {
-    pub pypath: AbsoluteOrRelativePyPath,
+    pub pypath: AbsoluteOrRelativePypath,
     pub line_number: usize,
     pub is_typechecking: bool,
 }
@@ -100,7 +100,7 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
                 for name in stmt.names.iter() {
                     let location = self.locator.locate(name.range.start());
                     self.imports.push(RawImport {
-                        pypath: AbsoluteOrRelativePyPath::new(name.name.as_ref()),
+                        pypath: AbsoluteOrRelativePypath::new(name.name.as_ref()),
                         line_number: location.row.to_usize(),
                         is_typechecking: context.is_typechecking,
                     });
@@ -122,7 +122,7 @@ impl ast_visit::StatementVisitor<VisitorContext> for ImportVisitor<'_> {
                 for name in stmt.names.iter() {
                     let location = self.locator.locate(name.range.start());
                     self.imports.push(RawImport {
-                        pypath: AbsoluteOrRelativePyPath::new(
+                        pypath: AbsoluteOrRelativePypath::new(
                             &(prefix.clone() + name.name.as_ref()),
                         ),
                         line_number: location.row.to_usize(),
@@ -178,9 +178,9 @@ mod tests {
         expected_imports: Vec<RawImport>,
     }
 
-    impl From<&str> for AbsoluteOrRelativePyPath {
+    impl From<&str> for AbsoluteOrRelativePypath {
         fn from(value: &str) -> Self {
-            AbsoluteOrRelativePyPath::new(value)
+            AbsoluteOrRelativePypath::new(value)
         }
     }
 
@@ -344,29 +344,29 @@ else:
     struct RelativeImportsTestCase<'a> {
         path: &'a str,
         raw_pypath: &'a str,
-        expected: AbsolutePyPath,
+        expected: AbsolutePypath,
     }
 
     #[parameterized(case={
         RelativeImportsTestCase {
             path: "foo.py",
             raw_pypath: ".bar",
-            expected:  AbsolutePyPath::new("testpackage.bar")     
+            expected:  AbsolutePypath::new("testpackage.bar")     
         },
         RelativeImportsTestCase {
             path: "subpackage/foo.py",
             raw_pypath: "..bar",
-            expected:   AbsolutePyPath::new("testpackage.bar")
+            expected:   AbsolutePypath::new("testpackage.bar")
         },
         RelativeImportsTestCase {
             path: "foo.py",
             raw_pypath: ".bar.ABC",
-            expected: AbsolutePyPath::new("testpackage.bar.ABC")      
+            expected: AbsolutePypath::new("testpackage.bar.ABC")      
         },
         RelativeImportsTestCase {
             path: "subpackage/foo.py",
             raw_pypath: "..bar.ABC",
-            expected:   AbsolutePyPath::new("testpackage.bar.ABC")   
+            expected:   AbsolutePypath::new("testpackage.bar.ABC")   
         },
     })]
     fn test_resolve_relative_imports(case: RelativeImportsTestCase<'_>) -> Result<()> {
@@ -374,7 +374,7 @@ else:
             "__init__.py" => ""
         };
 
-        let raw_pypath = AbsoluteOrRelativePyPath::new(case.raw_pypath);
+        let raw_pypath = AbsoluteOrRelativePypath::new(case.raw_pypath);
 
         assert_eq!(
             raw_pypath.resolve_relative(

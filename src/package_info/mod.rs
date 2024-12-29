@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::AbsolutePyPath;
+use crate::AbsolutePypath;
 use crate::Error;
 
 new_key_type! { pub struct PackageToken; }
@@ -17,7 +17,7 @@ new_key_type! { pub struct ModuleToken; }
 #[derive(Debug, Clone)]
 pub struct Package {
     pub path: PathBuf,
-    pub pypath: AbsolutePyPath,
+    pub pypath: AbsolutePypath,
     //
     pub token: PackageToken,
     pub parent: Option<PackageToken>,
@@ -33,7 +33,7 @@ impl Package {
         path: &Path,
         root_path: &Path,
     ) -> Package {
-        let pypath = AbsolutePyPath::from_path(path, root_path).unwrap();
+        let pypath = AbsolutePypath::from_path(path, root_path).unwrap();
         Package {
             token,
             parent: parent_token,
@@ -49,7 +49,7 @@ impl Package {
 #[derive(Debug, Clone)]
 pub struct Module {
     pub path: PathBuf,
-    pub pypath: AbsolutePyPath,
+    pub pypath: AbsolutePypath,
     pub is_init: bool,
     //
     pub token: ModuleToken,
@@ -63,7 +63,7 @@ impl Module {
         path: &Path,
         root_path: &Path,
     ) -> Module {
-        let pypath = AbsolutePyPath::from_path(path, root_path).unwrap();
+        let pypath = AbsolutePypath::from_path(path, root_path).unwrap();
         Module {
             token,
             parent: parent_token,
@@ -80,9 +80,9 @@ pub struct PackageInfo {
     pub(crate) packages: SlotMap<PackageToken, Package>,
     pub(crate) modules: SlotMap<ModuleToken, Module>,
     pub(crate) packages_by_path: HashMap<PathBuf, PackageToken>,
-    pub(crate) packages_by_pypath: HashMap<AbsolutePyPath, PackageToken>,
+    pub(crate) packages_by_pypath: HashMap<AbsolutePypath, PackageToken>,
     pub(crate) modules_by_path: HashMap<PathBuf, ModuleToken>,
-    pub(crate) modules_by_pypath: HashMap<AbsolutePyPath, ModuleToken>,
+    pub(crate) modules_by_pypath: HashMap<AbsolutePypath, ModuleToken>,
 }
 
 #[derive(Debug, Clone)]
@@ -186,7 +186,7 @@ impl PackageInfo {
         let root =
             packages.insert_with_key(|token| Package::new(token, None, root_path, root_path));
         packages_by_path.insert(root_path.to_path_buf(), root);
-        packages_by_pypath.insert(AbsolutePyPath::from_path(root_path, root_path)?, root);
+        packages_by_pypath.insert(AbsolutePypath::from_path(root_path, root_path)?, root);
 
         let fs_items = filesystem::DirectoryReader::new()
             .exclude_hidden_items()
@@ -204,7 +204,7 @@ impl PackageInfo {
                     let parent = packages.get_mut(*parent_token).unwrap();
                     parent.packages.insert(token);
                     packages_by_path.insert(path.clone(), token);
-                    packages_by_pypath.insert(AbsolutePyPath::from_path(&path, root_path)?, token);
+                    packages_by_pypath.insert(AbsolutePypath::from_path(&path, root_path)?, token);
                 }
                 filesystem::FsItem::File { path } => {
                     let parent_token = packages_by_path.get(path.parent().unwrap()).unwrap();
@@ -218,7 +218,7 @@ impl PackageInfo {
                         parent.init_module = Some(token);
                     }
                     modules_by_path.insert(path.clone(), token);
-                    modules_by_pypath.insert(AbsolutePyPath::from_path(&path, root_path)?, token);
+                    modules_by_pypath.insert(AbsolutePypath::from_path(&path, root_path)?, token);
                 }
             }
         }
@@ -234,12 +234,12 @@ impl PackageInfo {
         })
     }
 
-    pub fn pypath_is_internal(&self, pypath: &AbsolutePyPath) -> bool {
+    pub fn pypath_is_internal(&self, pypath: &AbsolutePypath) -> bool {
         let root_pypath = &self.get_root().pypath;
         root_pypath.contains(pypath)
     }
 
-    pub fn pypath_is_external(&self, pypath: &AbsolutePyPath) -> bool {
+    pub fn pypath_is_external(&self, pypath: &AbsolutePypath) -> bool {
         !self.pypath_is_internal(pypath)
     }
 }

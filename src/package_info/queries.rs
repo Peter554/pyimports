@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
-use crate::{AbsolutePyPath, Error};
+use crate::{AbsolutePypath, Error};
 
 impl PackageInfo {
     pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
@@ -17,7 +17,7 @@ impl PackageInfo {
         }
     }
 
-    pub fn get_item_by_pypath(&self, pypath: &AbsolutePyPath) -> Option<PackageItem> {
+    pub fn get_item_by_pypath(&self, pypath: &AbsolutePypath) -> Option<PackageItem> {
         if let Some(package) = self.packages_by_pypath.get(pypath) {
             Some(self.get_package(*package).unwrap().into())
         } else {
