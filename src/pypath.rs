@@ -138,15 +138,9 @@ pub trait IntoPypath {
     fn into_pypath(&self) -> Result<impl Borrow<Pypath>>;
 }
 
-impl IntoPypath for Pypath {
+impl<B: Borrow<Pypath>> IntoPypath for B {
     fn into_pypath(&self) -> Result<impl Borrow<Pypath>> {
-        Ok(self)
-    }
-}
-
-impl IntoPypath for &Pypath {
-    fn into_pypath(&self) -> Result<impl Borrow<Pypath>> {
-        Ok(*self)
+        Ok(self.borrow())
     }
 }
 

@@ -14,12 +14,12 @@ use crate::Error;
 use crate::{IntoPypath, Pypath};
 
 new_key_type! {
-    /// A token used to identify a package.
+    /// A token used to identify a python package within [PackageInfo].
     pub struct PackageToken;
 }
 
 new_key_type! {
-    /// A token used to identify a module.
+    /// A token used to identify a python module within [PackageInfo].
     pub struct ModuleToken;
 }
 
@@ -173,7 +173,7 @@ impl<'a> fmt::Display for PackageItem<'a> {
     }
 }
 
-/// A unified token for an item within a package.
+/// A unified token for a [PackageItem] within [PackageInfo].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PackageItemToken {
     /// A package.

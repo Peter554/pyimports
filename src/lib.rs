@@ -10,6 +10,7 @@ mod pypath;
 // a way to access the testutils from doctests.
 // Related [GH issue](https://github.com/rust-lang/rust/issues/67295).
 mod testutils;
+#[doc(hidden)]
 pub use testutils::TestPackage;
 
 pub use errors::Error;

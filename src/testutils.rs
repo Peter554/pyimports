@@ -8,7 +8,7 @@ use tempdir::TempDir;
 
 use crate::{ImportsInfo, PackageInfo, PackageItemToken};
 
-#[allow(missing_docs)]
+#[doc(hidden)]
 pub struct TestPackage {
     // Need to move the TempDir into TestPackage to avoid it being dropped.
     _temp_dir: TempDir,
@@ -47,7 +47,7 @@ impl TestPackage {
     }
 }
 
-/// Creates a test package in a temporary directory.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! testpackage {
     ($($k:expr => $v:expr),*) => {{
