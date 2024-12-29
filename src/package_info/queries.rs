@@ -121,18 +121,6 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::collections::HashSet;
 
-    impl Package {
-        fn _unit_test_string(&self) -> String {
-            format!("package:{}", self.pypath)
-        }
-    }
-
-    impl Module {
-        fn _unit_test_string(&self) -> String {
-            format!("module:{}", self.pypath)
-        }
-    }
-
     fn create_test_package() -> Result<TestPackage> {
         Ok(testpackage! {
             "__init__.py" => "",
@@ -156,18 +144,13 @@ mod tests {
             package_info
                 .get_child_items(package_info.get_root().token)
                 .unwrap()
-                .map(|item| {
-                    match item {
-                        PackageItem::Package(p) => p._unit_test_string(),
-                        PackageItem::Module(m) => m._unit_test_string(),
-                    }
-                })
+                .map(|item| item.to_string())
                 .collect::<HashSet<_>>(),
             hashset! {
-                "module:testpackage.__init__".into(),
-                "module:testpackage.main".into(),
-                "package:testpackage.colors".into(),
-                "package:testpackage.food".into(),
+                "Module(testpackage.__init__)".into(),
+                "Module(testpackage.main)".into(),
+                "Package(testpackage.colors)".into(),
+                "Package(testpackage.food)".into(),
             }
         );
 
@@ -183,28 +166,23 @@ mod tests {
             package_info
                 .get_descendant_items(package_info.get_root().token)
                 .unwrap()
-                .map(|item| {
-                    match item {
-                        PackageItem::Package(p) => p._unit_test_string(),
-                        PackageItem::Module(m) => m._unit_test_string(),
-                    }
-                })
+                .map(|item| item.to_string())
                 .collect::<HashSet<_>>(),
             hashset! {
-                "module:testpackage.__init__".into(),
-                "module:testpackage.main".into(),
+                "Module(testpackage.__init__)".into(),
+                "Module(testpackage.main)".into(),
                 //
-                "package:testpackage.colors".into(),
-                "module:testpackage.colors.__init__".into(),
-                "module:testpackage.colors.red".into(),
+                "Package(testpackage.colors)".into(),
+                "Module(testpackage.colors.__init__)".into(),
+                "Module(testpackage.colors.red)".into(),
                 //
-                "package:testpackage.food".into(),
-                "module:testpackage.food.__init__".into(),
-                "module:testpackage.food.pizza".into(),
+                "Package(testpackage.food)".into(),
+                "Module(testpackage.food.__init__)".into(),
+                "Module(testpackage.food.pizza)".into(),
                 //
-                "package:testpackage.food.fruit".into(),
-                "module:testpackage.food.fruit.__init__".into(),
-                "module:testpackage.food.fruit.apple".into(),
+                "Package(testpackage.food.fruit)".into(),
+                "Module(testpackage.food.fruit.__init__)".into(),
+                "Module(testpackage.food.fruit.apple)".into(),
             }
         );
 
@@ -219,30 +197,25 @@ mod tests {
         assert_eq!(
             package_info
                 .get_all_items()
-                .map(|item| {
-                    match item {
-                        PackageItem::Package(p) => p._unit_test_string(),
-                        PackageItem::Module(m) => m._unit_test_string(),
-                    }
-                })
+                .map(|item| item.to_string())
                 .collect::<HashSet<_>>(),
             hashset! {
-                "package:testpackage".into(),
+                "Package(testpackage)".into(),
                 //
-                "module:testpackage.__init__".into(),
-                "module:testpackage.main".into(),
+                "Module(testpackage.__init__)".into(),
+                "Module(testpackage.main)".into(),
                 //
-                "package:testpackage.colors".into(),
-                "module:testpackage.colors.__init__".into(),
-                "module:testpackage.colors.red".into(),
+                "Package(testpackage.colors)".into(),
+                "Module(testpackage.colors.__init__)".into(),
+                "Module(testpackage.colors.red)".into(),
                 //
-                "package:testpackage.food".into(),
-                "module:testpackage.food.__init__".into(),
-                "module:testpackage.food.pizza".into(),
+                "Package(testpackage.food)".into(),
+                "Module(testpackage.food.__init__)".into(),
+                "Module(testpackage.food.pizza)".into(),
                 //
-                "package:testpackage.food.fruit".into(),
-                "module:testpackage.food.fruit.__init__".into(),
-                "module:testpackage.food.fruit.apple".into(),
+                "Package(testpackage.food.fruit)".into(),
+                "Module(testpackage.food.fruit.__init__)".into(),
+                "Module(testpackage.food.fruit.apple)".into(),
             }
         );
 

@@ -5,10 +5,12 @@ use thiserror::Error;
 
 use crate::{AbsolutePypath, ModuleToken, PackageToken};
 
+#[allow(missing_docs)]
 #[derive(Error, Debug, PartialEq)]
 pub enum Error {
     #[error("unknown package {0:?}")]
     UnknownPackage(PackageToken),
+
     #[error("unknown module {0:?}")]
     UnknownModule(ModuleToken),
 
@@ -27,6 +29,7 @@ pub enum Error {
 
     #[error("not a package")]
     NotAPackage,
+
     #[error("not a module")]
     NotAModule,
 
