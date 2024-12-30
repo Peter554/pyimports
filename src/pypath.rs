@@ -143,11 +143,11 @@ impl Pypath {
 /// to accept a [`Pypath`], `&Pypath` or a `&str`.
 ///
 /// ```
+/// # use anyhow::Result;
 /// use std::borrow::Borrow;
 ///
-/// use anyhow::Result;
-///
-/// use pyimports::{IntoPypath,Pypath};
+/// use pyimports::prelude::*;
+/// use pyimports::Pypath;
 ///
 /// fn f<T: IntoPypath>(pypath: T) -> Result<()> {
 ///     let pypath = pypath.into_pypath()?;
@@ -157,7 +157,6 @@ impl Pypath {
 /// }
 ///
 /// # fn main() -> Result<()> {
-///
 /// // `f` can accept a Pypath
 /// f("foo.bar".parse::<Pypath>()?)?;
 /// // ...or a &Pypath

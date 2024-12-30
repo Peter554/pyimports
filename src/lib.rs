@@ -23,3 +23,13 @@ pub use package_info::{
     PackageToken,
 };
 pub use pypath::{IntoPypath, Pypath};
+
+/// Exports extension traits used by pyimports.
+///
+/// ```
+/// use pyimports::prelude::*;
+/// ```
+pub mod prelude {
+    pub use crate::IntoPypath;
+    pub use crate::PackageItemIterator;
+}
