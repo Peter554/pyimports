@@ -67,6 +67,7 @@ pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
 impl<'a, T: Iterator<Item = PackageItem<'a>>> PackageItemIterator<'a> for T {}
 
 impl PackageInfo {
+    /// Get a package item via the associated filesystem path.
     pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
         if let Some(package) = self.packages_by_path.get(path) {
             Some(self.get_package(*package).unwrap().into())
@@ -77,6 +78,7 @@ impl PackageInfo {
         }
     }
 
+    /// Get a package item via the associated pypath.
     pub fn get_item_by_pypath<T: IntoPypath>(&self, pypath: T) -> Result<Option<PackageItem>> {
         let pypath = pypath.into_pypath()?;
         if let Some(package) = self.packages_by_pypath.get(pypath.borrow()) {
@@ -89,6 +91,7 @@ impl PackageInfo {
         }
     }
 
+    /// Get a package item via the associated token.
     pub fn get_item(&self, token: PackageItemToken) -> Result<PackageItem> {
         match token {
             PackageItemToken::Package(token) => Ok(self.get_package(token)?.into()),
@@ -96,6 +99,7 @@ impl PackageInfo {
         }
     }
 
+    /// Get a package via the associated token.
     pub fn get_package(&self, token: PackageToken) -> Result<&Package> {
         match self.packages.get(token) {
             Some(package) => Ok(package),
@@ -103,6 +107,7 @@ impl PackageInfo {
         }
     }
 
+    /// Get a module via the associated token.
     pub fn get_module(&self, token: ModuleToken) -> Result<&Module> {
         match self.modules.get(token) {
             Some(module) => Ok(module),
@@ -110,10 +115,30 @@ impl PackageInfo {
         }
     }
 
+    /// Get the root package.
     pub fn get_root(&self) -> &Package {
         self.get_package(self.root).unwrap()
     }
 
+    /// Get an iterator over the child items of the passed package.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// use pyimports::prelude::*;
+    /// use pyimports::PackageItem;
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let test_package = testpackage! {
+    /// #     "__init__.py" => ""
+    /// # };
+    /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
+    /// let children = package_info
+    ///     .get_child_items(package_info.get_root().token)?
+    ///     .collect::<Vec<PackageItem>>();
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_child_items(
         &self,
         token: PackageToken,
@@ -137,6 +162,25 @@ impl PackageInfo {
         Ok(v.into_iter())
     }
 
+    /// Get an iterator over the descendant items of the passed package.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// use pyimports::prelude::*;
+    /// use pyimports::PackageItem;
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let test_package = testpackage! {
+    /// #     "__init__.py" => ""
+    /// # };
+    /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
+    /// let descendants = package_info
+    ///     .get_descendant_items(package_info.get_root().token)?
+    ///     .collect::<Vec<PackageItem>>();
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_descendant_items(
         &self,
         token: PackageToken,
@@ -152,6 +196,7 @@ impl PackageInfo {
         Ok(v.into_iter())
     }
 
+    /// Get an iterator over all the package items.
     pub fn get_all_items(&self) -> impl Iterator<Item = PackageItem> {
         let iter = std::iter::once(PackageItem::Package(self.get_root()))
             .chain(self.get_descendant_items(self.root).unwrap());
