@@ -12,6 +12,7 @@ use std::{
 
 use crate::Error;
 use crate::{IntoPypath, Pypath};
+pub use queries::PackageItemIterator;
 
 new_key_type! {
     /// A token used to identify a python package within [PackageInfo].

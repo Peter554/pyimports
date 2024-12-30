@@ -7,6 +7,24 @@ use crate::package_info::{
 };
 use crate::{Error, IntoPypath};
 
+pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
+    fn filter_packages(self) -> impl Iterator<Item = &'a Package> {
+        self.filter_map(|item| match item {
+            PackageItem::Package(package) => Some(package),
+            _ => None,
+        })
+    }
+
+    fn filter_modules(self) -> impl Iterator<Item = &'a Module> + Sized {
+        self.filter_map(|item| match item {
+            PackageItem::Module(module) => Some(module),
+            _ => None,
+        })
+    }
+}
+
+impl<'a, T: Iterator<Item = PackageItem<'a>>> PackageItemIterator<'a> for T {}
+
 impl PackageInfo {
     pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
         if let Some(package) = self.packages_by_path.get(path) {
@@ -18,10 +36,7 @@ impl PackageInfo {
         }
     }
 
-    pub fn get_item_by_pypath<T: IntoPypath>(
-        &self,
-        pypath: T,
-    ) -> Result<Option<PackageItem>> {
+    pub fn get_item_by_pypath<T: IntoPypath>(&self, pypath: T) -> Result<Option<PackageItem>> {
         let pypath = pypath.into_pypath()?;
         if let Some(package) = self.packages_by_pypath.get(pypath.borrow()) {
             Ok(Some(self.get_package(*package).unwrap().into()))
@@ -89,7 +104,7 @@ impl PackageInfo {
         let iter = children.chain(
             self.get_child_items(token)
                 .unwrap()
-                .filter_map(PackageInfo::filter_packages)
+                .filter_packages()
                 .flat_map(|child_package| self.get_descendant_items(child_package.token).unwrap()),
         );
         let v = iter.collect::<Vec<_>>();
@@ -101,20 +116,6 @@ impl PackageInfo {
             .chain(self.get_descendant_items(self.root).unwrap());
         let v = iter.collect::<Vec<_>>();
         v.into_iter()
-    }
-
-    pub fn filter_packages(item: PackageItem<'_>) -> Option<&Package> {
-        match item {
-            PackageItem::Package(package) => Some(package),
-            _ => None,
-        }
-    }
-
-    pub fn filter_modules(item: PackageItem<'_>) -> Option<&Module> {
-        match item {
-            PackageItem::Module(module) => Some(module),
-            _ => None,
-        }
     }
 }
 

@@ -19,6 +19,7 @@ pub use imports_info::{
     InternalImportsQueries, PackageItemTokenSet,
 };
 pub use package_info::{
-    Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
+    Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemIterator, PackageItemToken,
+    PackageToken,
 };
 pub use pypath::{IntoPypath, Pypath};

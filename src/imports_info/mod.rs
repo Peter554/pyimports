@@ -10,7 +10,7 @@ pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
-    Pypath, Error,
+    Error, PackageItemIterator, Pypath,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,10 +93,7 @@ impl ImportsInfo {
         imports_info.initialise_maps()?;
 
         // By definition, packages import their init modules.
-        for package in package_info
-            .get_all_items()
-            .filter_map(PackageInfo::filter_packages)
-        {
+        for package in package_info.get_all_items().filter_packages() {
             if let Some(init_module) = package.init_module {
                 imports_info.add_internal_import(package.token.into(), init_module.into(), None)?;
             }
@@ -292,7 +289,7 @@ fn get_all_raw_imports(
 ) -> Result<HashMap<PackageItemToken, Vec<ResolvedRawImport>>> {
     let all_raw_imports = package_info
         .get_all_items()
-        .filter_map(PackageInfo::filter_modules)
+        .filter_modules()
         .par_bridge()
         .try_fold(
             HashMap::new,
