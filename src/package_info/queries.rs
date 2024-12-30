@@ -79,6 +79,25 @@ impl PackageInfo {
     }
 
     /// Get a package item via the associated pypath.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage,TestPackage};
+    /// use pyimports::PackageInfo;
+    ///
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "",
+    ///     "foo.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(&test_package.path())?;
+    ///
+    /// let foo = package_info.get_item_by_pypath("testpackage.foo")?;
+    /// assert!(foo.is_some());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_item_by_pypath<T: IntoPypath>(&self, pypath: T) -> Result<Option<PackageItem>> {
         let pypath = pypath.into_pypath()?;
         if let Some(package) = self.packages_by_pypath.get(pypath.borrow()) {
@@ -118,6 +137,25 @@ impl PackageInfo {
     /// Get the root package.
     pub fn get_root(&self) -> &Package {
         self.get_package(self.root).unwrap()
+    }
+
+    /// Get the parent package of the passed package item.
+    pub fn get_parent_package(&self, token: PackageItemToken) -> Result<Option<&Package>> {
+        let item = self.get_item(token)?;
+        let parent = match item {
+            PackageItem::Package(package) => match package.parent {
+                Some(parent) => Some(self.get_item(parent.into())?),
+                None => None,
+            },
+            PackageItem::Module(module) => Some(self.get_item(module.parent.into())?),
+        };
+        match parent {
+            Some(parent) => match parent {
+                PackageItem::Package(parent) => Ok(Some(parent)),
+                PackageItem::Module(_) => panic!("Parent is a module?!"),
+            },
+            None => Ok(None),
+        }
     }
 
     /// Get an iterator over the child items of the passed package.
@@ -226,6 +264,37 @@ mod tests {
             "food/fruit/apple.py" => "",
             "data.txt" => ""
         })
+    }
+
+    #[test]
+    fn test_get_parent_item() -> Result<()> {
+        let test_package = create_test_package()?;
+        let package_info = PackageInfo::build(test_package.path())?;
+
+        let root_package = package_info.get_root();
+        let colors_package = package_info
+            .get_item_by_pypath("testpackage.colors")?
+            .unwrap();
+        let main = package_info
+            .get_item_by_pypath("testpackage.main")?
+            .unwrap();
+
+        assert_eq!(
+            package_info.get_parent_package(colors_package.token())?,
+            Some(root_package)
+        );
+
+        assert_eq!(
+            package_info.get_parent_package(main.token())?,
+            Some(root_package)
+        );
+
+        assert_eq!(
+            package_info.get_parent_package(root_package.token.into())?,
+            None
+        );
+
+        Ok(())
     }
 
     #[test]

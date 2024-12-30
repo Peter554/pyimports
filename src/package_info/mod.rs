@@ -25,7 +25,7 @@ new_key_type! {
 }
 
 /// A python package.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Package {
     /// The absolute filesystem path to this package.
     pub path: PathBuf,
@@ -71,7 +71,7 @@ impl Package {
 }
 
 /// A python module.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     /// The absolute filesystem path to this module.
     pub path: PathBuf,
@@ -157,7 +157,7 @@ pub struct PackageInfo {
 }
 
 /// A unified representation of an item within a package.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PackageItem<'a> {
     /// A package.
     Package(&'a Package),
@@ -257,6 +257,22 @@ impl<'a> PackageItem<'a> {
         match self {
             PackageItem::Package(p) => p.token.into(),
             PackageItem::Module(m) => m.token.into(),
+        }
+    }
+
+    /// The filesystem path for this package item.
+    pub fn path(&'a self) -> &Path {
+        match self {
+            PackageItem::Package(p) => &p.path,
+            PackageItem::Module(m) => &m.path,
+        }
+    }
+
+    /// The pypath for this package item.
+    pub fn pypath(&'a self) -> &Pypath {
+        match self {
+            PackageItem::Package(p) => &p.pypath,
+            PackageItem::Module(m) => &m.pypath,
         }
     }
 }
