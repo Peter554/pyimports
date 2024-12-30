@@ -38,6 +38,12 @@ impl Pypath {
     }
 }
 
+impl fmt::Display for Pypath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.s)
+    }
+}
+
 impl FromStr for Pypath {
     type Err = Error;
 
@@ -50,6 +56,12 @@ impl FromStr for Pypath {
     }
 }
 
+impl AsRef<str> for Pypath {
+    fn as_ref(&self) -> &str {
+        &self.s
+    }
+}
+
 impl From<Pypath> for String {
     fn from(value: Pypath) -> Self {
         value.s
@@ -59,12 +71,6 @@ impl From<Pypath> for String {
 impl<'a> From<&'a Pypath> for &'a str {
     fn from(value: &'a Pypath) -> Self {
         &value.s
-    }
-}
-
-impl fmt::Display for Pypath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.s)
     }
 }
 
@@ -132,9 +138,37 @@ impl Pypath {
     }
 }
 
+// TODO: Is there some way to achieve this via the TryFrom/TryInto trait?
 /// A trait that can be used as a bound to generic functions that want
-/// to accept a Pypath, or any type parseable as a Pypath.
+/// to accept a [`Pypath`], `&Pypath` or a `&str`.
+///
+/// ```
+/// use std::borrow::Borrow;
+///
+/// use anyhow::Result;
+///
+/// use pyimports::{IntoPypath,Pypath};
+///
+/// fn f<T: IntoPypath>(pypath: T) -> Result<()> {
+///     let pypath = pypath.into_pypath()?;
+///     let pypath: &Pypath = pypath.borrow();
+///     print!("{}", pypath);
+///     Ok(())
+/// }
+///
+/// # fn main() -> Result<()> {
+///
+/// // `f` can accept a Pypath
+/// f("foo.bar".parse::<Pypath>()?)?;
+/// // ...or a &Pypath
+/// f(&"foo.bar".parse::<Pypath>()?)?;
+/// // ...or a &str
+/// f("foo.bar")?;
+/// # Ok(())
+/// # }
+/// ```
 pub trait IntoPypath {
+    ///
     fn into_pypath(&self) -> Result<impl Borrow<Pypath>>;
 }
 
