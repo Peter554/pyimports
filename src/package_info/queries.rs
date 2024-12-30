@@ -7,7 +7,28 @@ use crate::package_info::{
 };
 use crate::{Error, IntoPypath};
 
+/// An iterator over package items.
 pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
+    /// Filter to packages only.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// use pyimports::prelude::*;
+    /// use pyimports::Package;
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let test_package = testpackage! {
+    /// #     "__init__.py" => ""
+    /// # };
+    /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
+    /// let packages = package_info
+    ///     .get_all_items()
+    ///     .filter_packages()
+    ///     .collect::<Vec<&Package>>();
+    /// # Ok(())
+    /// # }
+    /// ```
     fn filter_packages(self) -> impl Iterator<Item = &'a Package> {
         self.filter_map(|item| match item {
             PackageItem::Package(package) => Some(package),
@@ -15,6 +36,26 @@ pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
         })
     }
 
+    /// Filter to modules only.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// use pyimports::prelude::*;
+    /// use pyimports::Module;
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let test_package = testpackage! {
+    /// #     "__init__.py" => ""
+    /// # };
+    /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
+    /// let modules = package_info
+    ///     .get_all_items()
+    ///     .filter_modules()
+    ///     .collect::<Vec<&Module>>();
+    /// # Ok(())
+    /// # }
+    /// ```
     fn filter_modules(self) -> impl Iterator<Item = &'a Module> + Sized {
         self.filter_map(|item| match item {
             PackageItem::Module(module) => Some(module),

@@ -16,7 +16,6 @@ pub struct TestPackage {
 }
 
 impl TestPackage {
-    #[allow(missing_docs)]
     pub fn new(name: &str, modules: HashMap<&str, &str>) -> Result<TestPackage> {
         let temp_dir = TempDir::new("")?;
         let dir_path = temp_dir.path().join(name);
@@ -31,12 +30,10 @@ impl TestPackage {
         Ok(test_package)
     }
 
-    #[allow(missing_docs)]
     pub fn path(&self) -> &Path {
         &self.dir_path
     }
 
-    #[allow(missing_docs)]
     pub fn add_file(&self, path: &str, contents: &str) -> Result<()> {
         let file_path = self.dir_path.join(path);
         let file_dir = file_path.parent().unwrap();
