@@ -51,13 +51,14 @@ impl<'a> ExternalImportsQueries<'a> {
         &'a self,
         from: PackageItemToken,
         to: T,
-    ) -> Result<Option<&'a ImportMetadata>> {
+    ) -> Result<&'a ImportMetadata> {
         let to = to.into_pypath()?;
         if self.direct_import_exists(from, to.borrow())? {
             Ok(self
                 .imports_info
                 .external_imports_metadata
-                .get(&(from, to.borrow().clone())))
+                .get(&(from, to.borrow().clone()))
+                .unwrap())
         } else {
             Err(Error::NoSuchImport)?
         }
@@ -71,7 +72,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{testpackage, testutils::TestPackage, PackageInfo};
+    use crate::{testpackage, testutils::TestPackage, ExplicitImportMetadata, PackageInfo};
 
     #[test]
     fn test_get_direct_imports() -> Result<()> {
@@ -137,7 +138,7 @@ mod tests {
 
         assert_eq!(
             metadata,
-            Some(&ImportMetadata {
+            &ImportMetadata::ExplicitImport(ExplicitImportMetadata {
                 line_number: 1,
                 is_typechecking: false
             })

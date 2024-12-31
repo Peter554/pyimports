@@ -13,10 +13,22 @@ use crate::{
     Error, PackageItemIterator, Pypath,
 };
 
+/// An explicit import statement.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ImportMetadata {
-    line_number: usize,
-    is_typechecking: bool,
+pub struct ExplicitImportMetadata {
+    /// The line number of the import statement.
+    pub line_number: usize,
+    /// Whether the import statement is for typechecking only (`typing.TYPE_CHECKING`).
+    pub is_typechecking: bool,
+}
+
+/// Metadata associated with an import.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportMetadata {
+    /// An explicit import.
+    ExplicitImport(ExplicitImportMetadata),
+    /// An implicit import. E.g. all packages implicitly import their init modules.
+    ImplicitImport,
 }
 
 pub type PackageItemTokenSet = HashSet<PackageItemToken>;
@@ -95,7 +107,11 @@ impl ImportsInfo {
         // By definition, packages import their init modules.
         for package in package_info.get_all_items().filter_packages() {
             if let Some(init_module) = package.init_module {
-                imports_info.add_internal_import(package.token.into(), init_module.into(), None)?;
+                imports_info.add_internal_import(
+                    package.token.into(),
+                    init_module.into(),
+                    ImportMetadata::ImplicitImport,
+                )?;
             }
         }
 
@@ -105,10 +121,10 @@ impl ImportsInfo {
                     continue;
                 }
 
-                let metadata = ImportMetadata {
+                let metadata = ImportMetadata::ExplicitImport(ExplicitImportMetadata {
                     line_number: raw_import.line_number,
                     is_typechecking: raw_import.is_typechecking,
-                };
+                });
 
                 if package_info.pypath_is_internal(&raw_import.pypath)? {
                     let internal_item = {
@@ -131,9 +147,9 @@ impl ImportsInfo {
                         }
                     };
 
-                    imports_info.add_internal_import(item, internal_item, Some(metadata))?;
+                    imports_info.add_internal_import(item, internal_item, metadata)?;
                 } else if options.include_external_imports {
-                    imports_info.add_external_import(item, raw_import.pypath, Some(metadata))?;
+                    imports_info.add_external_import(item, raw_import.pypath, metadata)?;
                 }
             }
         }
@@ -178,28 +194,32 @@ impl ImportsInfo {
     pub fn exclude_typechecking_imports(&self) -> Result<Self> {
         let mut imports_info = self.clone();
 
-        let internal_imports =
-            self.internal_imports_metadata
-                .iter()
-                .filter_map(|((from, to), metadata)| {
+        let internal_imports = self.internal_imports_metadata.iter().filter_map(
+            |((from, to), metadata)| match metadata {
+                ImportMetadata::ExplicitImport(metadata) => {
                     if metadata.is_typechecking {
                         Some((*from, *to))
                     } else {
                         None
                     }
-                });
+                }
+                ImportMetadata::ImplicitImport => None,
+            },
+        );
         imports_info = imports_info.exclude_internal_imports(internal_imports)?;
 
-        let external_imports =
-            self.external_imports_metadata
-                .iter()
-                .filter_map(|((from, to), metadata)| {
+        let external_imports = self.external_imports_metadata.iter().filter_map(
+            |((from, to), metadata)| match metadata {
+                ImportMetadata::ExplicitImport(metadata) => {
                     if metadata.is_typechecking {
                         Some((*from, to.clone()))
                     } else {
                         None
                     }
-                });
+                }
+                ImportMetadata::ImplicitImport => None,
+            },
+        );
         imports_info = imports_info.exclude_external_imports(external_imports)?;
 
         Ok(imports_info)
@@ -221,16 +241,14 @@ impl ImportsInfo {
         &mut self,
         from: PackageItemToken,
         to: PackageItemToken,
-        metadata: Option<ImportMetadata>,
+        metadata: ImportMetadata,
     ) -> Result<()> {
         self.internal_imports.entry(from).or_default().insert(to);
         self.reverse_internal_imports
             .entry(to)
             .or_default()
             .insert(from);
-        if let Some(metadata) = metadata {
-            self.internal_imports_metadata.insert((from, to), metadata);
-        }
+        self.internal_imports_metadata.insert((from, to), metadata);
         Ok(())
     }
 
@@ -256,15 +274,13 @@ impl ImportsInfo {
         &mut self,
         from: PackageItemToken,
         to: Pypath,
-        metadata: Option<ImportMetadata>,
+        metadata: ImportMetadata,
     ) -> Result<()> {
         self.external_imports
             .entry(from)
             .or_default()
             .insert(to.clone());
-        if let Some(metadata) = metadata {
-            self.external_imports_metadata.insert((from, to), metadata);
-        }
+        self.external_imports_metadata.insert((from, to), metadata);
         Ok(())
     }
 
@@ -380,18 +396,19 @@ from django.db import models
         assert_eq!(
             imports_info.internal_imports_metadata,
             hashmap! {
-                (root_package_init, a) => ImportMetadata{
+                (root_package, root_package_init) => ImportMetadata::ImplicitImport,
+                (root_package_init, a) => ImportMetadata::ExplicitImport(ExplicitImportMetadata {
                     line_number: 2,
                     is_typechecking: false,
-                },
-                (root_package_init, b) => ImportMetadata{
+                }),
+                (root_package_init, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 3,
                     is_typechecking: false,
-                },
-                (a, b) => ImportMetadata{
+                }),
+                (a, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 2,
                     is_typechecking: false,
-                }
+                })
             }
         );
 
@@ -408,10 +425,10 @@ from django.db import models
         assert_eq!(
             imports_info.external_imports_metadata,
             hashmap! {
-                (b, "django.db.models".parse()?) => ImportMetadata{
+                (b, "django.db.models".parse()?) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 2,
                     is_typechecking: false,
-                },
+                }),
             }
         );
 
@@ -460,14 +477,15 @@ from testpackage import b
         assert_eq!(
             imports_info.internal_imports_metadata,
             hashmap! {
-                (root_package_init, a) => ImportMetadata{
+                (root_package, root_package_init) => ImportMetadata::ImplicitImport,
+                (root_package_init, a) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 2,
                     is_typechecking: false,
-                },
-                (root_package_init, b) => ImportMetadata{
+                }),
+                (root_package_init, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 3,
                     is_typechecking: false,
-                },
+                }),
             }
         );
 
@@ -496,10 +514,11 @@ from testpackage import b
         assert_eq!(
             imports_info.internal_imports_metadata,
             hashmap! {
-                (root_package_init, b) => ImportMetadata{
+                (root_package, root_package_init) => ImportMetadata::ImplicitImport,
+                (root_package_init, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 3,
                     is_typechecking: false,
-                },
+                }),
             }
         );
 
@@ -552,14 +571,15 @@ if TYPE_CHECKING:
         assert_eq!(
             imports_info.internal_imports_metadata,
             hashmap! {
-                (root_package_init, a) => ImportMetadata{
+                (root_package, root_package_init) => ImportMetadata::ImplicitImport,
+                (root_package_init, a) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 4,
                     is_typechecking: false,
-                },
-                (root_package_init, b) => ImportMetadata{
+                }),
+                (root_package_init, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 7,
                     is_typechecking: true,
-                },
+                }),
             }
         );
 
@@ -588,10 +608,11 @@ if TYPE_CHECKING:
         assert_eq!(
             imports_info.internal_imports_metadata,
             hashmap! {
-                (root_package_init, a) => ImportMetadata{
+                (root_package, root_package_init) => ImportMetadata::ImplicitImport,
+                (root_package_init, a) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
                     line_number: 4,
                     is_typechecking: false,
-                },
+                }),
             }
         );
 

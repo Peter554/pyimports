@@ -102,9 +102,13 @@ impl<'a> InternalImportsQueries<'a> {
         &'a self,
         from: PackageItemToken,
         to: PackageItemToken,
-    ) -> Result<Option<&'a ImportMetadata>> {
+    ) -> Result<&'a ImportMetadata> {
         if self.direct_import_exists(from, to)? {
-            Ok(self.imports_info.internal_imports_metadata.get(&(from, to)))
+            Ok(self
+                .imports_info
+                .internal_imports_metadata
+                .get(&(from, to))
+                .unwrap())
         } else {
             Err(Error::NoSuchImport)?
         }
@@ -155,7 +159,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{testpackage, testutils::TestPackage, Error, PackageInfo};
+    use crate::{testpackage, testutils::TestPackage, Error, ExplicitImportMetadata, PackageInfo};
 
     #[test]
     fn test_get_direct_imports() -> Result<()> {
@@ -346,17 +350,13 @@ from testpackage import books",
 
         let internal_imports = imports_info.internal_imports();
 
-        let metadata = internal_imports
-            .get_import_metadata(root_package, root_package_init)
-            .unwrap();
-        assert_eq!(metadata, None);
+        let metadata = internal_imports.get_import_metadata(root_package, root_package_init)?;
+        assert_eq!(metadata, &ImportMetadata::ImplicitImport);
 
-        let metadata = internal_imports
-            .get_import_metadata(root_package_init, fruit)
-            .unwrap();
+        let metadata = internal_imports.get_import_metadata(root_package_init, fruit)?;
         assert_eq!(
             metadata,
-            Some(&ImportMetadata {
+            &ImportMetadata::ExplicitImport(ExplicitImportMetadata {
                 line_number: 1,
                 is_typechecking: false
             })
