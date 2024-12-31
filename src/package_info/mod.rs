@@ -16,15 +16,18 @@ pub use queries::PackageItemIterator;
 
 new_key_type! {
     /// A token used to identify a python package within [PackageInfo].
+    /// See also [PackageItemToken].
     pub struct PackageToken;
 }
 
 new_key_type! {
     /// A token used to identify a python module within [PackageInfo].
+    /// See also [PackageItemToken].
     pub struct ModuleToken;
 }
 
 /// A python package.
+/// See also [PackageItem].
 #[derive(Debug, Clone, PartialEq)]
 pub struct Package {
     /// The absolute filesystem path to this package.
@@ -71,6 +74,7 @@ impl Package {
 }
 
 /// A python module.
+/// See also [PackageItem].
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     /// The absolute filesystem path to this module.
@@ -157,6 +161,29 @@ pub struct PackageInfo {
 }
 
 /// A unified representation of an item within a package.
+///
+/// ```
+/// # use std::collections::HashSet;
+/// # use anyhow::Result;
+/// # use pyimports::{testpackage,TestPackage,PackageInfo,PackageItem,Package,Module};
+/// # fn main() -> Result<()> {
+/// let test_package = testpackage! {
+///     "__init__.py" => ""
+/// };
+///
+/// let package_info = PackageInfo::build(test_package.path())?;
+///
+/// let root_pkg: PackageItem = package_info.get_item_by_pypath("testpackage")?.unwrap();
+/// let root_init: PackageItem = package_info.get_item_by_pypath("testpackage.__init__")?.unwrap();
+///
+/// let root_pkg: &Package = root_pkg.try_into()?;
+/// let root_init: &Module = root_init.try_into()?;
+///
+/// let root_pkg: PackageItem = root_pkg.into();
+/// let root_init: PackageItem = root_init.into();
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum PackageItem<'a> {
     /// A package.
@@ -175,6 +202,33 @@ impl<'a> fmt::Display for PackageItem<'a> {
 }
 
 /// A unified token for a [PackageItem] within [PackageInfo].
+///
+/// ```
+/// # use std::collections::HashSet;
+/// # use anyhow::Result;
+/// # use pyimports::{testpackage,TestPackage,PackageInfo,PackageItemToken,PackageToken,ModuleToken};
+/// # fn main() -> Result<()> {
+/// let test_package = testpackage! {
+///     "__init__.py" => ""
+/// };
+///
+/// let package_info = PackageInfo::build(test_package.path())?;
+///
+/// let root_pkg: PackageItemToken = package_info
+///     .get_item_by_pypath("testpackage")?.unwrap()
+///     .token();
+/// let root_init: PackageItemToken = package_info
+///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+///     .token();
+///
+/// let root_pkg: PackageToken = root_pkg.try_into()?;
+/// let root_init: ModuleToken = root_init.try_into()?;
+///
+/// let root_pkg: PackageItemToken = root_pkg.into();
+/// let root_init: PackageItemToken = root_init.into();
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PackageItemToken {
     /// A package.
