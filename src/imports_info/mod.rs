@@ -226,7 +226,7 @@ impl ImportsInfo {
     }
 
     /// Excludes the passed imports.
-    /// Returns a new [ImportsInfo], leaves this instance unchanged.
+    /// Returns a new [ImportsInfo], leaving this instance unchanged.
     pub fn exclude_imports(
         &self,
         internal: impl IntoIterator<Item = (PackageItemToken, PackageItemToken)>,
@@ -243,7 +243,7 @@ impl ImportsInfo {
     }
 
     /// Excludes typechecking imports.
-    /// Returns a new [ImportsInfo], leaves this instance unchanged.
+    /// Returns a new [ImportsInfo], leaving this instance unchanged.
     pub fn exclude_typechecking_imports(&self) -> Result<Self> {
         let mut imports_info = self.clone();
 

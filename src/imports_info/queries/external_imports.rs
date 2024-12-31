@@ -103,7 +103,7 @@ impl<'a> ExternalImportsQueries<'a> {
             .contains(to.borrow()))
     }
 
-    /// Returns the direct imports of the passed package item.
+    /// Returns the items directly imported by the passed package item.
     ///
     /// ```
     /// # use std::collections::HashSet;
