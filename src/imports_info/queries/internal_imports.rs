@@ -5,15 +5,85 @@ use pathfinding::prelude::{bfs, bfs_reach};
 
 use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken, PackageItemTokenSet};
 
+/// An object that allows querying internal imports.
 pub struct InternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
 }
 
 impl<'a> InternalImportsQueries<'a> {
+    /// Returns a map of all the direct imports.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a",
+    ///     "a.py" => "from django.db import models"
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_pkg = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage")?.unwrap()
+    ///     .token();
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_direct_imports(),
+    ///     hashmap! {
+    ///         root_pkg => hashset!{root_init},
+    ///         root_init => hashset!{a},
+    ///         a => hashset!{},
+    ///     }
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<PackageItemToken>> {
         self.imports_info.internal_imports.clone()
     }
 
+    /// Returns true if a direct import exists.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a",
+    ///     "a.py" => "from django.db import models"
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    ///
+    /// assert!(
+    ///     imports_info.internal_imports().direct_import_exists(root_init, a)?,
+    /// );
+    /// assert!(
+    ///     !imports_info.internal_imports().direct_import_exists(a, root_init)?,
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn direct_import_exists(
         &self,
         from: PackageItemToken,
@@ -30,6 +100,41 @@ impl<'a> InternalImportsQueries<'a> {
             .contains(&to))
     }
 
+    /// Returns the package items directly imported by the passed package item.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a, b",
+    ///     "a.py" => "from testpackage import b",
+    ///     "b.py" => "from testpackage import c",
+    ///     "c.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    /// let b = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_items_directly_imported_by(root_init)?,
+    ///     hashset!{a, b}
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_items_directly_imported_by(
         &'a self,
         item: PackageItemToken,
@@ -44,6 +149,41 @@ impl<'a> InternalImportsQueries<'a> {
             .clone())
     }
 
+    /// Returns the package items that directly import the passed package item.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a, b",
+    ///     "a.py" => "from testpackage import b",
+    ///     "b.py" => "from testpackage import c",
+    ///     "c.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    /// let b = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_items_that_directly_import(b)?,
+    ///     hashset!{root_init, a}
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_items_that_directly_import(
         &'a self,
         item: PackageItemToken,
@@ -58,6 +198,44 @@ impl<'a> InternalImportsQueries<'a> {
             .clone())
     }
 
+    /// Returns the downstream package items.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a, b",
+    ///     "a.py" => "from testpackage import b",
+    ///     "b.py" => "from testpackage import c",
+    ///     "c.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    /// let b = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .token();
+    /// let c = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_downstream_items(root_init)?,
+    ///     hashset!{a, b, c}
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_downstream_items(
         &'a self,
         item: PackageItemToken,
@@ -78,6 +256,47 @@ impl<'a> InternalImportsQueries<'a> {
         Ok(items)
     }
 
+    /// Returns the upstream package items.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a, b",
+    ///     "a.py" => "from testpackage import b",
+    ///     "b.py" => "from testpackage import c",
+    ///     "c.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_pkg = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage")?.unwrap()
+    ///     .token();
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    /// let b = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .token();
+    /// let c = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_upstream_items(c)?,
+    ///     hashset!{root_pkg, root_init, a, b}
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_upstream_items(
         &'a self,
         item: PackageItemToken,
@@ -98,6 +317,39 @@ impl<'a> InternalImportsQueries<'a> {
         Ok(items)
     }
 
+    /// Returns the metadata associated with the passed import.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,ImportMetadata,ExplicitImportMetadata};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a",
+    ///     "a.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_import_metadata(root_init, a)?,
+    ///     &ImportMetadata::ExplicitImport(ExplicitImportMetadata {
+    ///         line_number: 1,
+    ///         is_typechecking: false
+    ///     })
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_import_metadata(
         &'a self,
         from: PackageItemToken,
@@ -114,6 +366,44 @@ impl<'a> InternalImportsQueries<'a> {
         }
     }
 
+    /// Returns the shortest import path between the passed package items.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a, b",
+    ///     "a.py" => "from testpackage import b",
+    ///     "b.py" => "from testpackage import c",
+    ///     "c.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    /// let b = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .token();
+    /// let c = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_shortest_path(root_init, c)?,
+    ///     Some(vec![root_init, b, c])
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_shortest_path<To>(
         &'a self,
         from: PackageItemToken,
@@ -144,6 +434,46 @@ impl<'a> InternalImportsQueries<'a> {
         Ok(path)
     }
 
+    /// Returns true if an import path exists between the passed package items.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    ///     "__init__.py" => "from testpackage import a, b",
+    ///     "a.py" => "from testpackage import b",
+    ///     "b.py" => "from testpackage import c",
+    ///     "c.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let root_init = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .token();
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    /// let b = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .token();
+    /// let c = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .token();
+    ///
+    /// assert!(
+    ///     imports_info.internal_imports().path_exists(root_init, c)?,
+    /// );
+    /// assert!(
+    ///     !imports_info.internal_imports().path_exists(c, root_init)?,
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn path_exists<To>(&'a self, from: PackageItemToken, to: To) -> Result<bool>
     where
         To: Into<PackageItemTokenSet>,

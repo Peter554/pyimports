@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use rustpython_parser::ParseError;
 use thiserror::Error;
 
-use crate::{Pypath, ModuleToken, PackageToken};
+use crate::{ModuleToken, PackageToken, Pypath};
 
 #[allow(missing_docs)]
 #[derive(Error, Debug, PartialEq)]

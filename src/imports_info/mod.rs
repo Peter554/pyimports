@@ -31,6 +31,7 @@ pub enum ImportMetadata {
     ImplicitImport,
 }
 
+/// A set of [PackageItemToken]s.
 pub type PackageItemTokenSet = HashSet<PackageItemToken>;
 
 impl From<PackageItemToken> for PackageItemTokenSet {
@@ -39,6 +40,52 @@ impl From<PackageItemToken> for PackageItemTokenSet {
     }
 }
 
+/// A rich representation of the imports within a python package.
+///
+/// ```
+/// # use std::collections::HashSet;
+/// # use anyhow::Result;
+/// # use maplit::{hashmap, hashset};
+/// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+/// # fn main() -> Result<()> {
+/// let test_package = testpackage! {
+///     "__init__.py" => "from testpackage import a",
+///     "a.py" => "from django.db import models"
+/// };
+///
+/// let package_info = PackageInfo::build(test_package.path())?;
+/// let imports_info = ImportsInfo::build(package_info)?;
+///
+/// let root_pkg = imports_info.package_info()
+///     .get_item_by_pypath("testpackage")?.unwrap()
+///     .token();
+/// let root_init = imports_info.package_info()
+///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+///     .token();
+/// let a = imports_info.package_info()
+///     .get_item_by_pypath("testpackage.a")?.unwrap()
+///     .token();
+///
+/// assert_eq!(
+///     imports_info.internal_imports().get_direct_imports(),
+///     hashmap! {
+///         root_pkg => hashset!{root_init},
+///         root_init => hashset!{a},
+///         a => hashset!{},
+///     }
+/// );
+///
+/// assert_eq!(
+///     imports_info.external_imports().get_direct_imports(),
+///     hashmap! {
+///         root_pkg => hashset!{},
+///         root_init => hashset!{},
+///         a => hashset!{"django.db.models".parse()?},
+///     }
+/// );
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct ImportsInfo {
     package_info: PackageInfo,
@@ -51,6 +98,7 @@ pub struct ImportsInfo {
     external_imports_metadata: HashMap<(PackageItemToken, Pypath), ImportMetadata>,
 }
 
+/// Options for building an [ImportsInfo].
 #[derive(Debug, Clone)]
 pub struct ImportsInfoBuildOptions {
     include_typechecking_imports: bool,
@@ -64,6 +112,7 @@ impl Default for ImportsInfoBuildOptions {
 }
 
 impl ImportsInfoBuildOptions {
+    /// Creates (default) build options.
     pub fn new() -> Self {
         ImportsInfoBuildOptions {
             include_typechecking_imports: true,
@@ -71,11 +120,13 @@ impl ImportsInfoBuildOptions {
         }
     }
 
+    /// Excludes typechecking imports (`typing.TYPE_CHECKING`).
     pub fn exclude_typechecking_imports(mut self) -> Self {
         self.include_typechecking_imports = false;
         self
     }
 
+    /// Excludes external imports.
     pub fn exclude_external_imports(mut self) -> Self {
         self.include_external_imports = false;
         self
@@ -83,10 +134,12 @@ impl ImportsInfoBuildOptions {
 }
 
 impl ImportsInfo {
+    /// Builds an [ImportsInfo] with the default options.
     pub fn build(package_info: PackageInfo) -> Result<Self> {
         ImportsInfo::build_with_options(package_info, ImportsInfoBuildOptions::new())
     }
 
+    /// Builds an [ImportsInfo] with custom options.
     pub fn build_with_options(
         package_info: PackageInfo,
         options: ImportsInfoBuildOptions,
@@ -135,7 +188,7 @@ impl ImportsInfo {
                             // An imported module.
                             item
                         } else if let Some(item) = package_info
-                            .get_item_by_pypath(&raw_import.pypath.parent())?
+                            .get_item_by_pypath(raw_import.pypath.parent())?
                             .map(|item| item.token())
                         {
                             // An imported module member.
@@ -157,40 +210,40 @@ impl ImportsInfo {
         Ok(imports_info)
     }
 
+    /// Returns a reference to the contained [PackageInfo].
     pub fn package_info(&self) -> &PackageInfo {
         &self.package_info
     }
 
+    /// Returns an [InternalImportsQueries] object, that allows querying internal imports.
     pub fn internal_imports(&self) -> InternalImportsQueries {
         InternalImportsQueries { imports_info: self }
     }
 
+    /// Returns an [ExternalImportsQueries] object, that allows querying external imports.
     pub fn external_imports(&self) -> ExternalImportsQueries {
         ExternalImportsQueries { imports_info: self }
     }
 
-    pub fn exclude_internal_imports(
+    /// Excludes the passed imports.
+    /// Returns a new [ImportsInfo], leaves this instance unchanged.
+    pub fn exclude_imports(
         &self,
-        imports: impl IntoIterator<Item = (PackageItemToken, PackageItemToken)>,
+        internal: impl IntoIterator<Item = (PackageItemToken, PackageItemToken)>,
+        external: impl IntoIterator<Item = (PackageItemToken, Pypath)>,
     ) -> Result<Self> {
         let mut imports_info = self.clone();
-        for (from, to) in imports {
+        for (from, to) in internal {
             imports_info.remove_internal_import(from, to)?;
         }
-        Ok(imports_info)
-    }
-
-    pub fn exclude_external_imports(
-        &self,
-        imports: impl IntoIterator<Item = (PackageItemToken, Pypath)>,
-    ) -> Result<Self> {
-        let mut imports_info = self.clone();
-        for (from, to) in imports {
+        for (from, to) in external {
             imports_info.remove_external_import(from, to)?;
         }
         Ok(imports_info)
     }
 
+    /// Excludes typechecking imports.
+    /// Returns a new [ImportsInfo], leaves this instance unchanged.
     pub fn exclude_typechecking_imports(&self) -> Result<Self> {
         let mut imports_info = self.clone();
 
@@ -206,7 +259,6 @@ impl ImportsInfo {
                 ImportMetadata::ImplicitImport => None,
             },
         );
-        imports_info = imports_info.exclude_internal_imports(internal_imports)?;
 
         let external_imports = self.external_imports_metadata.iter().filter_map(
             |((from, to), metadata)| match metadata {
@@ -220,7 +272,8 @@ impl ImportsInfo {
                 ImportMetadata::ImplicitImport => None,
             },
         );
-        imports_info = imports_info.exclude_external_imports(external_imports)?;
+
+        imports_info = imports_info.exclude_imports(internal_imports, external_imports)?;
 
         Ok(imports_info)
     }
@@ -489,7 +542,7 @@ from testpackage import b
             }
         );
 
-        let imports_info = imports_info.exclude_internal_imports(vec![(root_package_init, a)])?;
+        let imports_info = imports_info.exclude_imports(vec![(root_package_init, a)], vec![])?;
 
         assert_eq!(
             imports_info.internal_imports,

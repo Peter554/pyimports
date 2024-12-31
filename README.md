@@ -75,7 +75,7 @@ fn main() -> Result<()> {
 This crate might be useful for something eventually, but right now it's mainly just
 a hobby project for me to learn about rust.
 
-If you are looking for something more mature, try [grimp](https://github.com/seddonym/grimp/) and/or [import-linter](https://github.com/seddonym/import-linter).
+If you are looking for something more mature, try [grimp](https://github.com/seddonym/grimp/)/[import-linter](https://github.com/seddonym/import-linter).
 
 ## Limitations
 

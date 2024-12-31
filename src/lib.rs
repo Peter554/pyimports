@@ -24,7 +24,7 @@ pub use package_info::{
 };
 pub use pypath::{IntoPypath, Pypath};
 
-/// Exports extension traits used by pyimports.
+/// Extension traits used by pyimports.
 ///
 /// ```
 /// use pyimports::prelude::*;

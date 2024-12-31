@@ -167,18 +167,18 @@ impl Pypath {
 /// # }
 /// ```
 pub trait IntoPypath {
-    ///
-    fn into_pypath(&self) -> Result<impl Borrow<Pypath>>;
+    /// Convert into a [Pypath].
+    fn into_pypath(self) -> Result<impl Borrow<Pypath>>;
 }
 
 impl<B: Borrow<Pypath>> IntoPypath for B {
-    fn into_pypath(&self) -> Result<impl Borrow<Pypath>> {
-        Ok(self.borrow())
+    fn into_pypath(self) -> Result<impl Borrow<Pypath>> {
+        Ok(self)
     }
 }
 
 impl IntoPypath for &str {
-    fn into_pypath(&self) -> Result<impl Borrow<Pypath>> {
+    fn into_pypath(self) -> Result<impl Borrow<Pypath>> {
         let pypath = self.parse::<Pypath>()?;
         Ok(pypath)
     }

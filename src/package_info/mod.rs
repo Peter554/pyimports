@@ -192,7 +192,7 @@ pub enum PackageItem<'a> {
     Module(&'a Module),
 }
 
-impl<'a> fmt::Display for PackageItem<'a> {
+impl fmt::Display for PackageItem<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PackageItem::Package(p) => p.fmt(f),
@@ -315,7 +315,7 @@ impl<'a> PackageItem<'a> {
     }
 
     /// The filesystem path for this package item.
-    pub fn path(&'a self) -> &Path {
+    pub fn path(&'a self) -> &'a Path {
         match self {
             PackageItem::Package(p) => &p.path,
             PackageItem::Module(m) => &m.path,
@@ -323,7 +323,7 @@ impl<'a> PackageItem<'a> {
     }
 
     /// The pypath for this package item.
-    pub fn pypath(&'a self) -> &Pypath {
+    pub fn pypath(&'a self) -> &'a Pypath {
         match self {
             PackageItem::Package(p) => &p.pypath,
             PackageItem::Module(m) => &m.pypath,
