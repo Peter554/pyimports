@@ -1,17 +1,17 @@
 mod parse;
 mod queries;
 
-use anyhow::Result;
-use rayon::iter::ParallelBridge;
-use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
-
 pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
     Error, PackageItemIterator, Pypath,
 };
+use anyhow::Result;
+use rayon::iter::ParallelBridge;
+use rayon::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 /// An explicit import statement.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,7 +88,8 @@ impl From<PackageItemToken> for PackageItemTokenSet {
 /// ```
 #[derive(Debug, Clone)]
 pub struct ImportsInfo {
-    package_info: PackageInfo,
+    // Use `Rc` to avoid cloning `package_info` on `import_info.clone()`.
+    package_info: Rc<PackageInfo>,
     //
     internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
@@ -144,10 +145,12 @@ impl ImportsInfo {
         package_info: PackageInfo,
         options: ImportsInfoBuildOptions,
     ) -> Result<Self> {
+        let package_info = Rc::new(package_info);
+
         let all_raw_imports = get_all_raw_imports(&package_info)?;
 
         let mut imports_info = ImportsInfo {
-            package_info: package_info.clone(),
+            package_info: Rc::clone(&package_info),
             internal_imports: HashMap::new(),
             reverse_internal_imports: HashMap::new(),
             internal_imports_metadata: HashMap::new(),
