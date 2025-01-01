@@ -229,27 +229,22 @@ impl ImportsInfo {
     }
 
     /// Excludes the passed imports.
-    /// Returns a new [ImportsInfo], leaving this instance unchanged.
     pub fn exclude_imports(
-        &self,
+        &mut self,
         internal: impl IntoIterator<Item = (PackageItemToken, PackageItemToken)>,
         external: impl IntoIterator<Item = (PackageItemToken, Pypath)>,
-    ) -> Result<Self> {
-        let mut imports_info = self.clone();
+    ) -> Result<()> {
         for (from, to) in internal {
-            imports_info.remove_internal_import(from, to)?;
+            self.remove_internal_import(from, to)?;
         }
         for (from, to) in external {
-            imports_info.remove_external_import(from, to)?;
+            self.remove_external_import(from, to)?;
         }
-        Ok(imports_info)
+        Ok(())
     }
 
     /// Excludes typechecking imports.
-    /// Returns a new [ImportsInfo], leaving this instance unchanged.
-    pub fn exclude_typechecking_imports(&self) -> Result<Self> {
-        let mut imports_info = self.clone();
-
+    pub fn exclude_typechecking_imports(&mut self) -> Result<()> {
         let internal_imports = self.internal_imports_metadata.iter().filter_map(
             |((from, to), metadata)| match metadata {
                 ImportMetadata::ExplicitImport(metadata) => {
@@ -261,7 +256,7 @@ impl ImportsInfo {
                 }
                 ImportMetadata::ImplicitImport => None,
             },
-        );
+        ).collect::<HashSet<_>>();
 
         let external_imports = self.external_imports_metadata.iter().filter_map(
             |((from, to), metadata)| match metadata {
@@ -274,11 +269,10 @@ impl ImportsInfo {
                 }
                 ImportMetadata::ImplicitImport => None,
             },
-        );
+        ).collect::<HashSet<_>>();
 
-        imports_info = imports_info.exclude_imports(internal_imports, external_imports)?;
-
-        Ok(imports_info)
+        self.exclude_imports(internal_imports, external_imports)?;
+        Ok(())
     }
 
     fn initialise_maps(&mut self) -> Result<()> {
@@ -503,7 +497,7 @@ from testpackage import b
         };
 
         let package_info = PackageInfo::build(test_package.path())?;
-        let imports_info = ImportsInfo::build(package_info)?;
+        let mut imports_info = ImportsInfo::build(package_info)?;
 
         let root_package = imports_info._item("testpackage");
         let root_package_init = imports_info._item("testpackage.__init__");
@@ -545,7 +539,7 @@ from testpackage import b
             }
         );
 
-        let imports_info = imports_info.exclude_imports(vec![(root_package_init, a)], vec![])?;
+        imports_info.exclude_imports(vec![(root_package_init, a)], vec![])?;
 
         assert_eq!(
             imports_info.internal_imports,
@@ -597,7 +591,7 @@ if TYPE_CHECKING:
         };
 
         let package_info = PackageInfo::build(test_package.path())?;
-        let imports_info = ImportsInfo::build(package_info)?;
+        let mut imports_info = ImportsInfo::build(package_info)?;
 
         let root_package = imports_info._item("testpackage");
         let root_package_init = imports_info._item("testpackage.__init__");
@@ -639,7 +633,7 @@ if TYPE_CHECKING:
             }
         );
 
-        let imports_info = imports_info.exclude_typechecking_imports()?;
+        imports_info.exclude_typechecking_imports()?;
 
         assert_eq!(
             imports_info.internal_imports,
