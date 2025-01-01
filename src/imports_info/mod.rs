@@ -245,8 +245,10 @@ impl ImportsInfo {
 
     /// Excludes typechecking imports.
     pub fn exclude_typechecking_imports(&mut self) -> Result<()> {
-        let internal_imports = self.internal_imports_metadata.iter().filter_map(
-            |((from, to), metadata)| match metadata {
+        let internal_imports = self
+            .internal_imports_metadata
+            .iter()
+            .filter_map(|((from, to), metadata)| match metadata {
                 ImportMetadata::ExplicitImport(metadata) => {
                     if metadata.is_typechecking {
                         Some((*from, *to))
@@ -255,11 +257,13 @@ impl ImportsInfo {
                     }
                 }
                 ImportMetadata::ImplicitImport => None,
-            },
-        ).collect::<HashSet<_>>();
+            })
+            .collect::<HashSet<_>>();
 
-        let external_imports = self.external_imports_metadata.iter().filter_map(
-            |((from, to), metadata)| match metadata {
+        let external_imports = self
+            .external_imports_metadata
+            .iter()
+            .filter_map(|((from, to), metadata)| match metadata {
                 ImportMetadata::ExplicitImport(metadata) => {
                     if metadata.is_typechecking {
                         Some((*from, to.clone()))
@@ -268,8 +272,8 @@ impl ImportsInfo {
                     }
                 }
                 ImportMetadata::ImplicitImport => None,
-            },
-        ).collect::<HashSet<_>>();
+            })
+            .collect::<HashSet<_>>();
 
         self.exclude_imports(internal_imports, external_imports)?;
         Ok(())
