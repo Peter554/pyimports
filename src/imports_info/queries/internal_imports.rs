@@ -10,6 +10,12 @@ pub struct InternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum PathfindingNode {
+    Initial,
+    PackageItem(PackageItemToken),
+}
+
 impl<'a> InternalImportsQueries<'a> {
     /// Returns a map of all the direct imports.
     ///
@@ -404,32 +410,54 @@ impl<'a> InternalImportsQueries<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_shortest_path<To>(
+    pub fn get_shortest_path<From, To>(
         &'a self,
-        from: PackageItemToken,
+        from: From,
         to: To,
     ) -> Result<Option<Vec<PackageItemToken>>>
     where
+        From: Into<PackageItemTokenSet>,
         To: Into<PackageItemTokenSet>,
     {
+        let from: PackageItemTokenSet = from.into();
         let to: PackageItemTokenSet = to.into();
 
-        self.imports_info.package_info.get_item(from)?;
+        for from_target in from.iter() {
+            self.imports_info.package_info.get_item(*from_target)?;
+        }
         for to_target in to.iter() {
             self.imports_info.package_info.get_item(*to_target)?;
         }
 
         let path = bfs(
-            &from,
+            &PathfindingNode::Initial,
             |item| {
-                self.imports_info
-                    .internal_imports
-                    .get(item)
-                    .unwrap()
-                    .clone()
+                let items = match item {
+                    PathfindingNode::Initial => from.clone(),
+                    PathfindingNode::PackageItem(item) => self
+                        .imports_info
+                        .internal_imports
+                        .get(item)
+                        .unwrap()
+                        .clone(),
+                };
+                items.into_iter().map(PathfindingNode::PackageItem)
             },
-            |item| to.contains(item),
+            |item| match item {
+                PathfindingNode::Initial => false,
+                PathfindingNode::PackageItem(item) => to.contains(item),
+            },
         );
+
+        let path = path.map(|path| {
+            path.into_iter()
+                .skip(1)
+                .map(|item| match item {
+                    PathfindingNode::PackageItem(item) => item,
+                    PathfindingNode::Initial => panic!(),
+                })
+                .collect()
+        });
 
         Ok(path)
     }
@@ -474,8 +502,9 @@ impl<'a> InternalImportsQueries<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn path_exists<To>(&'a self, from: PackageItemToken, to: To) -> Result<bool>
+    pub fn path_exists<From, To>(&'a self, from: From, to: To) -> Result<bool>
     where
+        From: Into<PackageItemTokenSet>,
         To: Into<PackageItemTokenSet>,
     {
         Ok(self.get_shortest_path(from, to)?.is_some())
