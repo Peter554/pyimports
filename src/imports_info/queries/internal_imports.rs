@@ -346,24 +346,11 @@ impl<'a> InternalImportsQueries<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_downstream_items(
+    pub fn get_downstream_items<T: Into<PackageItemTokenSet>>(
         &'a self,
-        item: PackageItemToken,
+        items: T,
     ) -> Result<HashSet<PackageItemToken>> {
-        self.imports_info.package_info.get_item(item)?;
-
-        let mut items = bfs_reach(item, |item| {
-            self.imports_info
-                .internal_imports
-                .get(item)
-                .unwrap()
-                .clone()
-        })
-        .collect::<HashSet<_>>();
-
-        items.remove(&item);
-
-        Ok(items)
+        self.bfs_reach(items, &self.imports_info.internal_imports)
     }
 
     /// Returns the upstream package items.
@@ -407,24 +394,40 @@ impl<'a> InternalImportsQueries<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_upstream_items(
+    pub fn get_upstream_items<T: Into<PackageItemTokenSet>>(
         &'a self,
-        item: PackageItemToken,
+        items: T,
     ) -> Result<HashSet<PackageItemToken>> {
-        self.imports_info.package_info.get_item(item)?;
+        self.bfs_reach(items, &self.imports_info.reverse_internal_imports)
+    }
 
-        let mut items = bfs_reach(item, |item| {
-            self.imports_info
-                .reverse_internal_imports
-                .get(item)
-                .unwrap()
-                .clone()
+    fn bfs_reach<T: Into<PackageItemTokenSet>>(
+        &'a self,
+        items: T,
+        imports_map: &HashMap<PackageItemToken, HashSet<PackageItemToken>>,
+    ) -> Result<HashSet<PackageItemToken>> {
+        let items: PackageItemTokenSet = items.into();
+
+        for item in items.iter() {
+            self.imports_info.package_info.get_item(*item)?;
+        }
+
+        let reachable_items = bfs_reach(PathfindingNode::Initial, |item| {
+            let items = match item {
+                PathfindingNode::Initial => items.clone(),
+                PathfindingNode::PackageItem(item) => imports_map.get(item).unwrap().clone(),
+            };
+            items.into_iter().map(PathfindingNode::PackageItem)
+        })
+        .filter_map(|item| match item {
+            PathfindingNode::Initial => None,
+            PathfindingNode::PackageItem(item) => Some(item),
         })
         .collect::<HashSet<_>>();
 
-        items.remove(&item);
+        let reachable_items = &reachable_items - &items;
 
-        Ok(items)
+        Ok(reachable_items)
     }
 
     /// Returns the metadata associated with the passed import.
@@ -730,31 +733,38 @@ from testpackage import colors
     #[test]
     fn test_get_downstream_items() -> Result<()> {
         let testpackage = testpackage! {
-            "__init__.py" => "
-from testpackage import fruit
-",
+            "__init__.py" => "",
 
-            "fruit.py" => "
-from testpackage import colors
-from testpackage import books",
+            "a.py" => "from testpackage import b",
+            "b.py" => "from testpackage import c",
+            "c.py" => "",
 
-            "colors.py" => "",
-            "books.py" => ""
+            "d.py" => "from testpackage import e",
+            "e.py" => "from testpackage import f",
+            "f.py" => ""
         };
 
         let package_info = PackageInfo::build(testpackage.path())?;
         let imports_info = ImportsInfo::build(package_info)?;
 
-        let root_package_init = imports_info._item("testpackage.__init__");
-        let fruit = imports_info._item("testpackage.fruit");
-        let colors = imports_info._item("testpackage.colors");
-        let books = imports_info._item("testpackage.books");
+        let a = imports_info._item("testpackage.a");
+        let b = imports_info._item("testpackage.b");
+        let c = imports_info._item("testpackage.c");
+        let d = imports_info._item("testpackage.d");
+        let e = imports_info._item("testpackage.e");
+        let f = imports_info._item("testpackage.f");
 
         let imports = imports_info
             .internal_imports()
-            .get_downstream_items(root_package_init)
+            .get_downstream_items(a)
             .unwrap();
-        assert_eq!(imports, hashset! {fruit, colors, books},);
+        assert_eq!(imports, hashset! {b, c},);
+
+        let imports = imports_info
+            .internal_imports()
+            .get_downstream_items(hashset! {a, d})
+            .unwrap();
+        assert_eq!(imports, hashset! {b, c, e, f},);
 
         Ok(())
     }
