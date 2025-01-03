@@ -62,7 +62,7 @@ fn main() -> Result<()> {
     );
 
     assert_eq!(
-        imports_info.internal_imports().get_path(
+        imports_info.internal_imports().find_path(
             &InternalImportsPathQuery::new()
                 .from(root_pkg)
                 .to(d)

@@ -86,7 +86,7 @@ impl InternalImportsPathQuery {
     ///
     /// // Sanity check: The shortest path goes via `b`.
     /// assert_eq!(
-    ///     imports_info.internal_imports().get_path(
+    ///     imports_info.internal_imports().find_path(
     ///         &InternalImportsPathQuery::new()
     ///             .from(a)
     ///             .to(c)
@@ -96,7 +96,7 @@ impl InternalImportsPathQuery {
     ///
     /// // If we exclude `b`, we get the longer path via `e`.
     /// assert_eq!(
-    ///     imports_info.internal_imports().get_path(
+    ///     imports_info.internal_imports().find_path(
     ///         &InternalImportsPathQuery::new()
     ///             .from(a)
     ///             .to(c)
@@ -476,7 +476,8 @@ impl<'a> InternalImportsQueries<'a> {
         }
     }
 
-    /// Returns the shortest import path between the passed package items.
+    /// Returns the shortest import path between the passed package items,
+    /// or `None` if no path can be found.
     ///
     /// ```
     /// # use std::collections::HashSet;
@@ -508,7 +509,7 @@ impl<'a> InternalImportsQueries<'a> {
     ///     .token();
     ///
     /// assert_eq!(
-    ///     imports_info.internal_imports().get_path(
+    ///     imports_info.internal_imports().find_path(
     ///         &InternalImportsPathQuery::new()
     ///             .from(root_init)
     ///             .to(c)
@@ -518,7 +519,7 @@ impl<'a> InternalImportsQueries<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_path(
+    pub fn find_path(
         &'a self,
         query: &InternalImportsPathQuery,
     ) -> Result<Option<Vec<PackageItemToken>>> {
@@ -611,7 +612,7 @@ impl<'a> InternalImportsQueries<'a> {
     /// # }
     /// ```
     pub fn path_exists(&'a self, query: &InternalImportsPathQuery) -> Result<bool> {
-        Ok(self.get_path(query)?.is_some())
+        Ok(self.find_path(query)?.is_some())
     }
 }
 
@@ -835,7 +836,7 @@ from testpackage import books",
     }
 
     #[test]
-    fn test_get_path() -> Result<()> {
+    fn test_find_path() -> Result<()> {
         let testpackage = testpackage! {
             "__init__.py" => "",
             "a.py" => "from testpackage import b; from testpackage import c",
@@ -855,7 +856,7 @@ from testpackage import books",
         assert_eq!(
             imports_info
                 .internal_imports()
-                .get_path(&InternalImportsPathQuery::new().from(a).to(e))?,
+                .find_path(&InternalImportsPathQuery::new().from(a).to(e))?,
             Some(vec![a, c, e])
         );
 
@@ -885,12 +886,12 @@ from testpackage import books",
         assert_eq!(
             imports_info
                 .internal_imports()
-                .get_path(&InternalImportsPathQuery::new().from(a).to(c))?,
+                .find_path(&InternalImportsPathQuery::new().from(a).to(c))?,
             Some(vec![a, b, c])
         );
 
         assert_eq!(
-            imports_info.internal_imports().get_path(
+            imports_info.internal_imports().find_path(
                 &InternalImportsPathQuery::new()
                     .from(a)
                     .to(c)
