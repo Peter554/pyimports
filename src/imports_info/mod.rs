@@ -2,7 +2,9 @@ mod parse;
 mod queries;
 
 pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
-pub use crate::imports_info::queries::internal_imports::InternalImportsQueries;
+pub use crate::imports_info::queries::internal_imports::{
+    InternalImportsPathQuery, InternalImportsQueries,
+};
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
     Error, PackageItemIterator, Pypath,

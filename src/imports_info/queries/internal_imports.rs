@@ -10,6 +10,42 @@ pub struct InternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
 }
 
+/// An object used to build an internal imports path query.
+pub struct InternalImportsPathQuery {
+    from: PackageItemTokenSet,
+    to: PackageItemTokenSet,
+}
+
+impl Default for InternalImportsPathQuery {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl InternalImportsPathQuery {
+    /// Creates a new [InternalImportsPathQuery].
+    pub fn new() -> Self {
+        InternalImportsPathQuery {
+            from: PackageItemTokenSet::new(),
+            to: PackageItemTokenSet::new(),
+        }
+    }
+
+    /// Adds package items from which paths may start.
+    pub fn from<T: Into<PackageItemTokenSet>>(mut self, items: T) -> Self {
+        let items: PackageItemTokenSet = items.into();
+        self.from.extend(items);
+        self
+    }
+
+    /// Adds package items to which paths may end.
+    pub fn to<T: Into<PackageItemTokenSet>>(mut self, items: T) -> Self {
+        let items: PackageItemTokenSet = items.into();
+        self.to.extend(items);
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum PathfindingNode {
     Initial,
@@ -378,7 +414,7 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,InternalImportsPathQuery};
     /// # fn main() -> Result<()> {
     /// let test_package = testpackage! {
     ///     "__init__.py" => "from testpackage import a, b",
@@ -404,28 +440,24 @@ impl<'a> InternalImportsQueries<'a> {
     ///     .token();
     ///
     /// assert_eq!(
-    ///     imports_info.internal_imports().get_shortest_path(root_init, c)?,
+    ///     imports_info.internal_imports().get_path(
+    ///         &InternalImportsPathQuery::new()
+    ///             .from(root_init)
+    ///             .to(c)
+    ///     )?,
     ///     Some(vec![root_init, b, c])
     /// );
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_shortest_path<From, To>(
+    pub fn get_path(
         &'a self,
-        from: From,
-        to: To,
-    ) -> Result<Option<Vec<PackageItemToken>>>
-    where
-        From: Into<PackageItemTokenSet>,
-        To: Into<PackageItemTokenSet>,
-    {
-        let from: PackageItemTokenSet = from.into();
-        let to: PackageItemTokenSet = to.into();
-
-        for from_target in from.iter() {
+        query: &InternalImportsPathQuery,
+    ) -> Result<Option<Vec<PackageItemToken>>> {
+        for from_target in query.from.iter() {
             self.imports_info.package_info.get_item(*from_target)?;
         }
-        for to_target in to.iter() {
+        for to_target in query.to.iter() {
             self.imports_info.package_info.get_item(*to_target)?;
         }
 
@@ -433,7 +465,7 @@ impl<'a> InternalImportsQueries<'a> {
             &PathfindingNode::Initial,
             |item| {
                 let items = match item {
-                    PathfindingNode::Initial => from.clone(),
+                    PathfindingNode::Initial => query.from.clone(),
                     PathfindingNode::PackageItem(item) => self
                         .imports_info
                         .internal_imports
@@ -445,7 +477,7 @@ impl<'a> InternalImportsQueries<'a> {
             },
             |item| match item {
                 PathfindingNode::Initial => false,
-                PathfindingNode::PackageItem(item) => to.contains(item),
+                PathfindingNode::PackageItem(item) => query.to.contains(item),
             },
         );
 
@@ -468,7 +500,7 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,InternalImportsPathQuery};
     /// # fn main() -> Result<()> {
     /// let test_package = testpackage! {
     ///     "__init__.py" => "from testpackage import a, b",
@@ -494,20 +526,20 @@ impl<'a> InternalImportsQueries<'a> {
     ///     .token();
     ///
     /// assert!(
-    ///     imports_info.internal_imports().path_exists(root_init, c)?,
+    ///     imports_info.internal_imports().path_exists(
+    ///         &InternalImportsPathQuery::new().from(root_init).to(c)
+    ///     )?,
     /// );
     /// assert!(
-    ///     !imports_info.internal_imports().path_exists(c, root_init)?,
+    ///     !imports_info.internal_imports().path_exists(
+    ///         &InternalImportsPathQuery::new().from(c).to(root_init)
+    ///     )?,
     /// );
     /// # Ok(())
     /// # }
     /// ```
-    pub fn path_exists<From, To>(&'a self, from: From, to: To) -> Result<bool>
-    where
-        From: Into<PackageItemTokenSet>,
-        To: Into<PackageItemTokenSet>,
-    {
-        Ok(self.get_shortest_path(from, to)?.is_some())
+    pub fn path_exists(&'a self, query: &InternalImportsPathQuery) -> Result<bool> {
+        Ok(self.get_path(query)?.is_some())
     }
 }
 
@@ -731,7 +763,7 @@ from testpackage import books",
     }
 
     #[test]
-    fn test_get_shortest_path() -> Result<()> {
+    fn test_get_path() -> Result<()> {
         let testpackage = testpackage! {
             "__init__.py" => "",
             "a.py" => "from testpackage import b; from testpackage import c",
@@ -749,7 +781,9 @@ from testpackage import books",
         let e = imports_info._item("testpackage.e");
 
         assert_eq!(
-            imports_info.internal_imports().get_shortest_path(a, e)?,
+            imports_info
+                .internal_imports()
+                .get_path(&InternalImportsPathQuery::new().from(a).to(e))?,
             Some(vec![a, c, e])
         );
 
@@ -773,8 +807,12 @@ from testpackage import books",
         let a = imports_info._item("testpackage.a");
         let e = imports_info._item("testpackage.e");
 
-        assert!(imports_info.internal_imports().path_exists(a, e)?);
-        assert!(!imports_info.internal_imports().path_exists(e, a)?);
+        assert!(imports_info
+            .internal_imports()
+            .path_exists(&InternalImportsPathQuery::new().from(a).to(e))?);
+        assert!(!imports_info
+            .internal_imports()
+            .path_exists(&InternalImportsPathQuery::new().from(e).to(a))?);
 
         Ok(())
     }
