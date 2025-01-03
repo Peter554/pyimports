@@ -10,10 +10,12 @@ pub struct InternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
 }
 
+#[derive(Debug, Clone)]
 /// An object used to build an internal imports path query.
 pub struct InternalImportsPathQuery {
     from: PackageItemTokenSet,
     to: PackageItemTokenSet,
+    excluding_paths_via: PackageItemTokenSet,
 }
 
 impl Default for InternalImportsPathQuery {
@@ -28,6 +30,7 @@ impl InternalImportsPathQuery {
         InternalImportsPathQuery {
             from: PackageItemTokenSet::new(),
             to: PackageItemTokenSet::new(),
+            excluding_paths_via: PackageItemTokenSet::new(),
         }
     }
 
@@ -42,6 +45,71 @@ impl InternalImportsPathQuery {
     pub fn to<T: Into<PackageItemTokenSet>>(mut self, items: T) -> Self {
         let items: PackageItemTokenSet = items.into();
         self.to.extend(items);
+        self
+    }
+
+    /// Exclude paths that would go via the passed package items.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,InternalImportsPathQuery};
+    /// # fn main() -> Result<()> {
+    /// let test_package = testpackage! {
+    /// "__init__.py" => "",
+    ///     "a.py" => "from testpackage import b, e",
+    ///     "b.py" => "from testpackage import c",
+    ///     "c.py" => "",
+    ///     "d.py" => "from testpackage import c",
+    ///     "e.py" => "from testpackage import d"
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    /// let b = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .token();
+    /// let c = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .token();
+    /// let d = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.d")?.unwrap()
+    ///     .token();
+    /// let e = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.e")?.unwrap()
+    ///     .token();
+    ///
+    /// // Sanity check: The shortest path goes via `b`.
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_path(
+    ///         &InternalImportsPathQuery::new()
+    ///             .from(a)
+    ///             .to(c)
+    ///     )?,
+    ///     Some(vec![a, b, c])
+    /// );
+    ///
+    /// // If we exclude `b`, we get the longer path via `e`.
+    /// assert_eq!(
+    ///     imports_info.internal_imports().get_path(
+    ///         &InternalImportsPathQuery::new()
+    ///             .from(a)
+    ///             .to(c)
+    ///             .excluding_paths_via(b)
+    ///     )?,
+    ///     Some(vec![a, e, d, c])
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn excluding_paths_via<T: Into<PackageItemTokenSet>>(mut self, items: T) -> Self {
+        let items: PackageItemTokenSet = items.into();
+        self.excluding_paths_via.extend(items);
         self
     }
 }
@@ -454,11 +522,14 @@ impl<'a> InternalImportsQueries<'a> {
         &'a self,
         query: &InternalImportsPathQuery,
     ) -> Result<Option<Vec<PackageItemToken>>> {
-        for from_target in query.from.iter() {
-            self.imports_info.package_info.get_item(*from_target)?;
+        for item in query.from.iter() {
+            self.imports_info.package_info.get_item(*item)?;
         }
-        for to_target in query.to.iter() {
-            self.imports_info.package_info.get_item(*to_target)?;
+        for item in query.to.iter() {
+            self.imports_info.package_info.get_item(*item)?;
+        }
+        for item in query.excluding_paths_via.iter() {
+            self.imports_info.package_info.get_item(*item)?;
         }
 
         let path = bfs(
@@ -473,6 +544,7 @@ impl<'a> InternalImportsQueries<'a> {
                         .unwrap()
                         .clone(),
                 };
+                let items = &items - &query.excluding_paths_via;
                 items.into_iter().map(PathfindingNode::PackageItem)
             },
             |item| match item {
@@ -785,6 +857,46 @@ from testpackage import books",
                 .internal_imports()
                 .get_path(&InternalImportsPathQuery::new().from(a).to(e))?,
             Some(vec![a, c, e])
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_path_excluding_paths_via() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "",
+            "a.py" => "from testpackage import b, e",
+            "b.py" => "from testpackage import c",
+            "c.py" => "",
+            "d.py" => "from testpackage import c",
+            "e.py" => "from testpackage import d"
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let a = imports_info._item("testpackage.a");
+        let b = imports_info._item("testpackage.b");
+        let c = imports_info._item("testpackage.c");
+        let d = imports_info._item("testpackage.d");
+        let e = imports_info._item("testpackage.e");
+
+        assert_eq!(
+            imports_info
+                .internal_imports()
+                .get_path(&InternalImportsPathQuery::new().from(a).to(c))?,
+            Some(vec![a, b, c])
+        );
+
+        assert_eq!(
+            imports_info.internal_imports().get_path(
+                &InternalImportsPathQuery::new()
+                    .from(a)
+                    .to(c)
+                    .excluding_paths_via(b)
+            )?,
+            Some(vec![a, e, d, c])
         );
 
         Ok(())
