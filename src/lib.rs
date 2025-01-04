@@ -16,7 +16,7 @@ pub use testutils::TestPackage;
 pub use errors::Error;
 pub use imports_info::{
     ExplicitImportMetadata, ExternalImportsQueries, ImportMetadata, ImportsInfo,
-    ImportsInfoBuildOptions, InternalImportsPathQuery, InternalImportsQueries, PackageItemTokenSet,
+    ImportsInfoBuildOptions, InternalImportsPathQuery, InternalImportsQueries, PackageItemTokens,
 };
 pub use package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemIterator, PackageItemToken,
@@ -32,4 +32,5 @@ pub use pypath::{IntoPypath, Pypath};
 pub mod prelude {
     pub use crate::IntoPypath;
     pub use crate::PackageItemIterator;
+    pub use crate::PackageItemTokens;
 }
