@@ -36,12 +36,11 @@ tasks:
       - task: check
       - task: check.uncommitted-changes
       - cargo bump {{.MODE}}
+      - cargo publish --dry-run --allow-dirty
       - git add --all
-      - git commit -m "Bump version v$(cargo metadata --format-version=1 --no-deps | jq '.packages[0].version')"
-      - git tag "v$(cargo metadata --format-version=1 --no-deps | jq '.packages[0].version')"
-      - cargo publish --dry-run
+      - git commit -m "Bump version v$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[0].version')"
+      - git tag "v$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[0].version')"
       - cargo publish
-      - git push
       - git push --tags
 
   check.uncommitted-changes:
