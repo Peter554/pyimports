@@ -26,3 +26,25 @@ tasks:
       - task: test
       - task: clippy.check
       - task: fmt.check
+
+  publish:
+    requires:
+      vars:
+        - name: MODE
+          enum: [patch, minor, major]
+    cmds:
+      - task: check
+      - task: check.uncommitted-changes
+      - cargo bump {{.MODE}}
+      - git add --all
+      - git commit -m "Bump version v$(cargo metadata --format-version=1 --no-deps | jq '.packages[0].version')"
+      - git tag "v$(cargo metadata --format-version=1 --no-deps | jq '.packages[0].version')"
+      - cargo publish --dry-run
+      - cargo publish
+      - git push
+      - git push --tags
+
+  check.uncommitted-changes:
+    internal: true
+    cmds:
+      - "[[ -z $(git status -s) ]]"
