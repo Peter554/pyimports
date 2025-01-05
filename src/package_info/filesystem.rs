@@ -90,7 +90,7 @@ impl<'a> DirectoryReader<'a> {
         v.extend(
             fs::read_dir(path)?
                 .par_bridge()
-                .try_fold(std::vec::Vec::new, |mut v, dir_item| -> Result<_> {
+                .try_fold(Vec::new, |mut v, dir_item| -> Result<_> {
                     let dir_item = dir_item?;
                     let path = dir_item.path();
                     let file_type = dir_item.file_type()?;
@@ -104,7 +104,7 @@ impl<'a> DirectoryReader<'a> {
                     }
                     Ok(v)
                 })
-                .try_reduce(std::vec::Vec::new, |mut v, fs_items| {
+                .try_reduce(Vec::new, |mut v, fs_items| {
                     v.extend(fs_items);
                     Ok(v)
                 })?,

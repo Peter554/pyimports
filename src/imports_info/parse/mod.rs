@@ -1,41 +1,37 @@
 mod ast_visit;
 
+use crate::{errors::Error, Pypath};
 use anyhow::Result;
 use rustpython_parser::{self, ast::Stmt, source_code::LinearLocator};
 use std::{fs, path::Path};
-
-use crate::{errors::Error, Pypath};
+use tap::Conv;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct AbsoluteOrRelativePypath {
-    s: String,
-}
+pub(crate) struct AbsoluteOrRelativePypath(String);
 
 impl AbsoluteOrRelativePypath {
     pub fn new(s: &str) -> Self {
-        AbsoluteOrRelativePypath { s: s.to_string() }
+        AbsoluteOrRelativePypath(s.to_string())
     }
 
     pub fn is_relative(&self) -> bool {
-        self.s.starts_with(".")
+        self.0.starts_with(".")
     }
 
     pub fn resolve_relative(&self, path: &Path, root_path: &Path) -> Pypath {
         if !self.is_relative() {
-            return Pypath { s: self.s.clone() };
+            return Pypath::new(&self.0);
         }
-        let trimmed_pypath = self.s.trim_start_matches(".");
+        let trimmed_pypath = self.0.trim_start_matches(".");
         let base_pypath = {
-            let n = self.s.len() - trimmed_pypath.len();
+            let n = self.0.len() - trimmed_pypath.len();
             let mut base_path = path;
             for _ in 0..n {
                 base_path = base_path.parent().unwrap();
             }
             Pypath::from_path(base_path, root_path).unwrap()
         };
-        Pypath {
-            s: base_pypath.s + "." + trimmed_pypath,
-        }
+        Pypath::new(&(base_pypath.conv::<String>() + "." + trimmed_pypath))
     }
 }
 

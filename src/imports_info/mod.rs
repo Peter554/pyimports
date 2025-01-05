@@ -13,7 +13,7 @@ use anyhow::Result;
 use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// An explicit import statement.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,15 +31,6 @@ pub enum ImportMetadata {
     ExplicitImport(ExplicitImportMetadata),
     /// An implicit import. E.g. all packages implicitly import their init modules.
     ImplicitImport,
-}
-
-/// A set of [PackageItemToken]s.
-pub type PackageItemTokenSet = HashSet<PackageItemToken>;
-
-impl From<PackageItemToken> for PackageItemTokenSet {
-    fn from(value: PackageItemToken) -> Self {
-        PackageItemTokenSet::from([value])
-    }
 }
 
 /// A rich representation of the imports within a python package.
@@ -90,8 +81,8 @@ impl From<PackageItemToken> for PackageItemTokenSet {
 /// ```
 #[derive(Debug, Clone)]
 pub struct ImportsInfo {
-    // Use `Rc` to avoid cloning `package_info` on `import_info.clone()`.
-    package_info: Rc<PackageInfo>,
+    // Use `Arc` to avoid cloning `package_info` on `import_info.clone()`.
+    package_info: Arc<PackageInfo>,
     //
     internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
@@ -123,13 +114,13 @@ impl ImportsInfoBuildOptions {
         }
     }
 
-    /// Excludes typechecking imports (`typing.TYPE_CHECKING`).
+    /// Typechecking imports (`typing.TYPE_CHECKING`) should be excluded.
     pub fn exclude_typechecking_imports(mut self) -> Self {
         self.include_typechecking_imports = false;
         self
     }
 
-    /// Excludes external imports.
+    /// External imports should be excluded.
     pub fn exclude_external_imports(mut self) -> Self {
         self.include_external_imports = false;
         self
@@ -147,12 +138,12 @@ impl ImportsInfo {
         package_info: PackageInfo,
         options: ImportsInfoBuildOptions,
     ) -> Result<Self> {
-        let package_info = Rc::new(package_info);
+        let package_info = Arc::new(package_info);
 
         let all_raw_imports = get_all_raw_imports(&package_info)?;
 
         let mut imports_info = ImportsInfo {
-            package_info: Rc::clone(&package_info),
+            package_info: Arc::clone(&package_info),
             internal_imports: HashMap::new(),
             reverse_internal_imports: HashMap::new(),
             internal_imports_metadata: HashMap::new(),
@@ -230,8 +221,8 @@ impl ImportsInfo {
         ExternalImportsQueries { imports_info: self }
     }
 
-    /// Excludes the passed imports.
-    pub fn exclude_imports(
+    /// Removes the passed imports.
+    pub fn remove_imports(
         &mut self,
         internal: impl IntoIterator<Item = (PackageItemToken, PackageItemToken)>,
         external: impl IntoIterator<Item = (PackageItemToken, Pypath)>,
@@ -245,8 +236,8 @@ impl ImportsInfo {
         Ok(())
     }
 
-    /// Excludes typechecking imports.
-    pub fn exclude_typechecking_imports(&mut self) -> Result<()> {
+    /// Removes typechecking imports.
+    pub fn remove_typechecking_imports(&mut self) -> Result<()> {
         let internal_imports = self
             .internal_imports_metadata
             .iter()
@@ -277,7 +268,7 @@ impl ImportsInfo {
             })
             .collect::<HashSet<_>>();
 
-        self.exclude_imports(internal_imports, external_imports)?;
+        self.remove_imports(internal_imports, external_imports)?;
         Ok(())
     }
 
@@ -492,7 +483,7 @@ from django.db import models
     }
 
     #[test]
-    fn test_exclude_imports() -> Result<()> {
+    fn test_remove_imports() -> Result<()> {
         let test_package = testpackage! {
             "__init__.py" => "
 import testpackage.a
@@ -545,7 +536,7 @@ from testpackage import b
             }
         );
 
-        imports_info.exclude_imports(vec![(root_package_init, a)], vec![])?;
+        imports_info.remove_imports(vec![(root_package_init, a)], vec![])?;
 
         assert_eq!(
             imports_info.internal_imports,
@@ -582,7 +573,7 @@ from testpackage import b
     }
 
     #[test]
-    fn test_exclude_typechecking_imports() -> Result<()> {
+    fn test_remove_typechecking_imports() -> Result<()> {
         let test_package = testpackage! {
             "__init__.py" => "
 from typing import TYPE_CHECKING
@@ -639,7 +630,7 @@ if TYPE_CHECKING:
             }
         );
 
-        imports_info.exclude_typechecking_imports()?;
+        imports_info.remove_typechecking_imports()?;
 
         assert_eq!(
             imports_info.internal_imports,

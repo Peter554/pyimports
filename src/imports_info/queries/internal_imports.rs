@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Result;
 use pathfinding::prelude::{bfs, bfs_reach};
 
-use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken, PackageItemTokenSet};
+use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken};
 
 /// An object that allows querying internal imports.
 pub struct InternalImportsQueries<'a> {
@@ -13,9 +13,9 @@ pub struct InternalImportsQueries<'a> {
 #[derive(Debug, Clone)]
 /// An object used to build an internal imports path query.
 pub struct InternalImportsPathQuery {
-    from: PackageItemTokenSet,
-    to: PackageItemTokenSet,
-    excluding_paths_via: PackageItemTokenSet,
+    from: HashSet<PackageItemToken>,
+    to: HashSet<PackageItemToken>,
+    excluding_paths_via: HashSet<PackageItemToken>,
 }
 
 impl Default for InternalImportsPathQuery {
@@ -28,22 +28,22 @@ impl InternalImportsPathQuery {
     /// Creates a new [InternalImportsPathQuery].
     pub fn new() -> Self {
         InternalImportsPathQuery {
-            from: PackageItemTokenSet::new(),
-            to: PackageItemTokenSet::new(),
-            excluding_paths_via: PackageItemTokenSet::new(),
+            from: HashSet::new(),
+            to: HashSet::new(),
+            excluding_paths_via: HashSet::new(),
         }
     }
 
     /// Adds package items from which paths may start.
-    pub fn from<T: Into<PackageItemTokenSet>>(mut self, items: T) -> Self {
-        let items: PackageItemTokenSet = items.into();
+    pub fn from<T: Into<HashSet<PackageItemToken>>>(mut self, items: T) -> Self {
+        let items: HashSet<PackageItemToken> = items.into();
         self.from.extend(items);
         self
     }
 
     /// Adds package items to which paths may end.
-    pub fn to<T: Into<PackageItemTokenSet>>(mut self, items: T) -> Self {
-        let items: PackageItemTokenSet = items.into();
+    pub fn to<T: Into<HashSet<PackageItemToken>>>(mut self, items: T) -> Self {
+        let items: HashSet<PackageItemToken> = items.into();
         self.to.extend(items);
         self
     }
@@ -107,8 +107,8 @@ impl InternalImportsPathQuery {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn excluding_paths_via<T: Into<PackageItemTokenSet>>(mut self, items: T) -> Self {
-        let items: PackageItemTokenSet = items.into();
+    pub fn excluding_paths_via<T: Into<HashSet<PackageItemToken>>>(mut self, items: T) -> Self {
+        let items: HashSet<PackageItemToken> = items.into();
         self.excluding_paths_via.extend(items);
         self
     }
@@ -346,7 +346,7 @@ impl<'a> InternalImportsQueries<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_downstream_items<T: Into<PackageItemTokenSet>>(
+    pub fn get_downstream_items<T: Into<HashSet<PackageItemToken>>>(
         &'a self,
         items: T,
     ) -> Result<HashSet<PackageItemToken>> {
@@ -394,19 +394,19 @@ impl<'a> InternalImportsQueries<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_upstream_items<T: Into<PackageItemTokenSet>>(
+    pub fn get_upstream_items<T: Into<HashSet<PackageItemToken>>>(
         &'a self,
         items: T,
     ) -> Result<HashSet<PackageItemToken>> {
         self.bfs_reach(items, &self.imports_info.reverse_internal_imports)
     }
 
-    fn bfs_reach<T: Into<PackageItemTokenSet>>(
+    fn bfs_reach<T: Into<HashSet<PackageItemToken>>>(
         &'a self,
         items: T,
         imports_map: &HashMap<PackageItemToken, HashSet<PackageItemToken>>,
     ) -> Result<HashSet<PackageItemToken>> {
-        let items: PackageItemTokenSet = items.into();
+        let items: HashSet<PackageItemToken> = items.into();
 
         for item in items.iter() {
             self.imports_info.package_info.get_item(*item)?;

@@ -1,31 +1,31 @@
-version: '3'
+version: "3"
 
 tasks:
   test:
     cmds:
       - cargo test
 
-  clippy.check:
+  check.clippy:
     cmds:
       - cargo clippy --all-targets -- -D warnings
 
-  clippy.fix:
+  fix.clippy:
     cmds:
       - cargo clippy --fix --allow-staged
 
-  fmt.check:
+  check.fmt:
     cmds:
       - cargo fmt --check
 
-  fmt.fix:
+  fix.fmt:
     cmds:
       - cargo fmt
 
   check:
     cmds:
       - task: test
-      - task: clippy.check
-      - task: fmt.check
+      - task: check.clippy
+      - task: check.fmt
 
   publish:
     requires:
