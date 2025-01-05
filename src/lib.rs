@@ -20,11 +20,11 @@ pub use testutils::TestPackage;
 pub use errors::Error;
 pub use imports_info::{
     ExplicitImportMetadata, ExternalImportsQueries, ImportMetadata, ImportsInfo,
-    ImportsInfoBuildOptions, InternalImportsPathQuery, InternalImportsQueries, PackageItemTokens,
+    ImportsInfoBuildOptions, InternalImportsPathQuery, InternalImportsQueries,
 };
 pub use package_info::{
-    Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemIterator, PackageItemToken,
-    PackageToken,
+    ExtendWithDescendants, Module, ModuleToken, Package, PackageInfo, PackageItem,
+    PackageItemIterator, PackageItemToken, PackageToken,
 };
 pub use pypath::{IntoPypath, Pypath};
 
@@ -34,7 +34,7 @@ pub use pypath::{IntoPypath, Pypath};
 /// use pyimports::prelude::*;
 /// ```
 pub mod prelude {
+    pub use crate::ExtendWithDescendants;
     pub use crate::IntoPypath;
     pub use crate::PackageItemIterator;
-    pub use crate::PackageItemTokens;
 }

@@ -10,7 +10,6 @@ use crate::{
     Error, PackageItemIterator, Pypath,
 };
 use anyhow::Result;
-use maplit::hashset;
 use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -32,68 +31,6 @@ pub enum ImportMetadata {
     ExplicitImport(ExplicitImportMetadata),
     /// An implicit import. E.g. all packages implicitly import their init modules.
     ImplicitImport,
-}
-
-impl From<PackageItemToken> for HashSet<PackageItemToken> {
-    fn from(value: PackageItemToken) -> Self {
-        hashset! { value }
-    }
-}
-
-/// An extension trait to allow attaching methods to a set of [PackageItemToken]s.
-pub trait PackageItemTokens {
-    /// Extend the set of package item tokens with any descendants.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use maplit::hashset;
-    /// # use pyimports::{testpackage,TestPackage};
-    /// use pyimports::prelude::*;
-    /// use pyimports::{PackageInfo,PackageItemToken};
-    ///
-    /// # fn main() -> Result<()> {
-    /// let testpackage = testpackage! {
-    ///         "a.py" => "",
-    ///         "b/c.py" => ""
-    ///  };
-    ///
-    /// let package_info = PackageInfo::build(testpackage.path())?;
-    ///
-    /// let root = package_info.get_item_by_pypath("testpackage")?.unwrap().token();
-    /// let a = package_info.get_item_by_pypath("testpackage.a")?.unwrap().token();
-    /// let b = package_info.get_item_by_pypath("testpackage.b")?.unwrap().token();
-    /// let c = package_info.get_item_by_pypath("testpackage.b.c")?.unwrap().token();
-    ///
-    /// let package_item_tokens = hashset! {root};
-    /// assert_eq!(
-    ///     package_item_tokens.extend_with_descendants(&package_info),
-    ///     hashset! {root, a, b, c}
-    /// );
-    /// # Ok(())
-    /// # }
-    /// ```
-    fn extend_with_descendants(self, package_info: &PackageInfo) -> Self;
-}
-
-impl PackageItemTokens for HashSet<PackageItemToken> {
-    fn extend_with_descendants(self, package_info: &PackageInfo) -> Self {
-        let mut items = self.clone();
-
-        for item in self.iter() {
-            let descendants = match item {
-                PackageItemToken::Package(item) => match package_info.get_descendant_items(*item) {
-                    Ok(descendants) => descendants.map(|item| item.token()).collect::<HashSet<_>>(),
-                    Err(e) => match e.downcast_ref::<Error>() {
-                        Some(Error::NotAPackage) => hashset! {},
-                        _ => panic!(),
-                    },
-                },
-                PackageItemToken::Module(_) => hashset! {},
-            };
-            items.extend(descendants);
-        }
-        items
-    }
 }
 
 /// A rich representation of the imports within a python package.

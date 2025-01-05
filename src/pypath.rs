@@ -1,9 +1,10 @@
 use std::borrow::Borrow;
-use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::Result;
+use derive_more::derive::{Display, Into};
+use derive_more::Deref;
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -27,20 +28,12 @@ lazy_static! {
 /// let result  = ".foo.bar".parse::<Pypath>();
 /// assert!(result.is_err());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Pypath {
-    pub(crate) s: String,
-}
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, Display, Into)]
+pub struct Pypath(String);
 
 impl Pypath {
     pub(crate) fn new(s: &str) -> Pypath {
-        Pypath { s: s.to_string() }
-    }
-}
-
-impl fmt::Display for Pypath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.s)
+        Pypath(s.to_string())
     }
 }
 
@@ -56,24 +49,6 @@ impl FromStr for Pypath {
     }
 }
 
-impl AsRef<str> for Pypath {
-    fn as_ref(&self) -> &str {
-        &self.s
-    }
-}
-
-impl From<Pypath> for String {
-    fn from(value: Pypath) -> Self {
-        value.s
-    }
-}
-
-impl<'a> From<&'a Pypath> for &'a str {
-    fn from(value: &'a Pypath) -> Self {
-        &value.s
-    }
-}
-
 impl Pypath {
     pub(crate) fn from_path(path: &Path, root_path: &Path) -> Result<Self> {
         let path = path.strip_prefix(root_path.parent().unwrap())?;
@@ -85,7 +60,7 @@ impl Pypath {
         Ok(Pypath::new(&s))
     }
 
-    /// Returns true if the passed pypath is contained by this pypath.
+    /// Returns true if this pypath is equal to or an ancestor of the passed pypath.
     ///
     /// # Example
     ///
@@ -95,14 +70,14 @@ impl Pypath {
     /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
     /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
     ///
-    /// assert!(foo_bar.contains(&foo_bar_baz));
-    /// assert!(!foo_bar_baz.contains(&foo_bar));
+    /// assert!(foo_bar.is_equal_to_or_ancestor_of(&foo_bar_baz));
+    /// assert!(!foo_bar_baz.is_equal_to_or_ancestor_of(&foo_bar));
     /// ```
-    pub fn contains(&self, other: &Pypath) -> bool {
-        self == other || other.s.starts_with(&(self.s.clone() + "."))
+    pub fn is_equal_to_or_ancestor_of(&self, other: &Pypath) -> bool {
+        self == other || other.0.starts_with(&(self.0.clone() + "."))
     }
 
-    /// Returns true if this pypath is contained by the passed pypath.
+    /// Returns true if this pypath is equal to or a descendant of the passed pypath.
     ///
     /// # Example
     ///
@@ -112,11 +87,11 @@ impl Pypath {
     /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
     /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
     ///
-    /// assert!(!foo_bar.is_contained_by(&foo_bar_baz));
-    /// assert!(foo_bar_baz.is_contained_by(&foo_bar));
+    /// assert!(!foo_bar.is_equal_to_or_descendant_of(&foo_bar_baz));
+    /// assert!(foo_bar_baz.is_equal_to_or_descendant_of(&foo_bar));
     /// ```
-    pub fn is_contained_by(&self, other: &Pypath) -> bool {
-        other.contains(self)
+    pub fn is_equal_to_or_descendant_of(&self, other: &Pypath) -> bool {
+        other.is_equal_to_or_ancestor_of(self)
     }
 
     /// Returns the parent of this pypath.
@@ -132,9 +107,9 @@ impl Pypath {
     ///assert!(foo_bar_baz.parent() == foo_bar);
     /// ```
     pub fn parent(&self) -> Self {
-        let mut v = self.s.split(".").collect::<Vec<_>>();
+        let mut v = self.0.split(".").collect::<Vec<_>>();
         v.pop();
-        Pypath { s: v.join(".") }
+        Pypath(v.join("."))
     }
 }
 
@@ -208,19 +183,19 @@ mod tests {
     }
 
     #[test]
-    fn test_contains() -> Result<()> {
-        assert!(Pypath::new("foo.bar").contains(&Pypath::new("foo.bar")));
-        assert!(Pypath::new("foo.bar").contains(&Pypath::new("foo.bar.baz")));
-        assert!(!Pypath::new("foo.bar").contains(&Pypath::new("foo")));
+    fn test_is_equal_or_ancestor() -> Result<()> {
+        assert!(Pypath::new("foo.bar").is_equal_to_or_ancestor_of(&Pypath::new("foo.bar")));
+        assert!(Pypath::new("foo.bar").is_equal_to_or_ancestor_of(&Pypath::new("foo.bar.baz")));
+        assert!(!Pypath::new("foo.bar").is_equal_to_or_ancestor_of(&Pypath::new("foo")));
 
         Ok(())
     }
 
     #[test]
-    fn test_contained_by() -> Result<()> {
-        assert!(Pypath::new("foo.bar").is_contained_by(&Pypath::new("foo.bar")));
-        assert!(!Pypath::new("foo.bar").is_contained_by(&Pypath::new("foo.bar.baz")));
-        assert!(Pypath::new("foo.bar").is_contained_by(&Pypath::new("foo")));
+    fn test_is_equal_or_descendant() -> Result<()> {
+        assert!(Pypath::new("foo.bar").is_equal_to_or_descendant_of(&Pypath::new("foo.bar")));
+        assert!(!Pypath::new("foo.bar").is_equal_to_or_descendant_of(&Pypath::new("foo.bar.baz")));
+        assert!(Pypath::new("foo.bar").is_equal_to_or_descendant_of(&Pypath::new("foo")));
 
         Ok(())
     }

@@ -1,18 +1,18 @@
 mod filesystem;
 mod queries;
 
+use crate::Error;
+use crate::{IntoPypath, Pypath};
 use anyhow::Result;
 use core::fmt;
+use maplit::hashset;
+pub use queries::PackageItemIterator;
 use slotmap::{new_key_type, SlotMap};
 use std::{
     borrow::Borrow,
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
-
-use crate::Error;
-use crate::{IntoPypath, Pypath};
-pub use queries::PackageItemIterator;
 
 new_key_type! {
     /// A token used to identify a python package within [PackageInfo].
@@ -427,7 +427,7 @@ impl PackageInfo {
     pub fn pypath_is_internal<T: IntoPypath>(&self, pypath: T) -> Result<bool> {
         let pypath = pypath.into_pypath()?;
         let root_pypath = &self.get_root().pypath;
-        Ok(root_pypath.contains(pypath.borrow()))
+        Ok(root_pypath.is_equal_to_or_ancestor_of(pypath.borrow()))
     }
 
     /// Checks whether the passed pypath is external.
@@ -450,6 +450,70 @@ impl PackageInfo {
     pub fn pypath_is_external<T: IntoPypath>(&self, pypath: T) -> Result<bool> {
         Ok(!self.pypath_is_internal(pypath)?)
     }
+}
+
+impl From<PackageItemToken> for HashSet<PackageItemToken> {
+    fn from(value: PackageItemToken) -> Self {
+        hashset! { value }
+    }
+}
+
+/// Extends a collection of package item tokens with all descendant items.
+///
+/// ```
+/// # use anyhow::Result;
+/// # use maplit::hashset;
+/// # use pyimports::{testpackage,TestPackage};
+/// use pyimports::prelude::*;
+/// use pyimports::{PackageInfo,PackageItemToken};
+///
+/// # fn main() -> Result<()> {
+/// let testpackage = testpackage! {
+///         "a.py" => "",
+///         "b/c.py" => ""
+///  };
+///
+/// let package_info = PackageInfo::build(testpackage.path())?;
+///
+/// let root = package_info.get_item_by_pypath("testpackage")?.unwrap().token();
+/// let a = package_info.get_item_by_pypath("testpackage.a")?.unwrap().token();
+/// let b = package_info.get_item_by_pypath("testpackage.b")?.unwrap().token();
+/// let c = package_info.get_item_by_pypath("testpackage.b.c")?.unwrap().token();
+///
+/// let package_item_tokens = hashset! {root};
+/// assert_eq!(
+///     package_item_tokens.extend_with_descendants(&package_info),
+///     hashset! {root, a, b, c}
+/// );
+/// # Ok(())
+/// # }
+/// ```
+pub trait ExtendWithDescendants:
+    Sized + Clone + IntoIterator<Item = PackageItemToken> + Extend<PackageItemToken>
+{
+    /// Extend this collection of package item tokens with all descendant items.
+    fn extend_with_descendants(mut self, package_info: &PackageInfo) -> Self {
+        for item in self.clone().into_iter() {
+            let descendants = match item {
+                PackageItemToken::Package(item) => match package_info.get_descendant_items(item) {
+                    Ok(descendants) => descendants.map(|item| item.token()).collect::<HashSet<_>>(),
+                    Err(e) => match e.downcast_ref::<Error>() {
+                        Some(Error::NotAPackage) => hashset! {},
+                        _ => panic!(),
+                    },
+                },
+                PackageItemToken::Module(_) => hashset! {},
+            };
+            self.extend(descendants);
+        }
+
+        self
+    }
+}
+
+impl<T: Sized + Clone + IntoIterator<Item = PackageItemToken> + Extend<PackageItemToken>>
+    ExtendWithDescendants for T
+{
 }
 
 #[cfg(test)]
