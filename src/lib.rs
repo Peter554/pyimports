@@ -33,7 +33,3 @@ pub mod prelude {
     pub use crate::IntoPypath;
     pub use crate::PackageItemIterator;
 }
-
-/// Some feature
-#[cfg(feature = "somefeature")]
-pub mod somefeature;

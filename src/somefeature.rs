@@ -1,2 +1,0 @@
-/// Foo
-pub fn foo() {}

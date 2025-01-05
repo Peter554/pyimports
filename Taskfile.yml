@@ -3,11 +3,11 @@ version: '3'
 tasks:
   test:
     cmds:
-      - cargo test --all-features
+      - cargo test
 
   clippy.check:
     cmds:
-      - cargo clippy --all-features --all-targets -- -D warnings
+      - cargo clippy --all-targets -- -D warnings
 
   clippy.fix:
     cmds:
