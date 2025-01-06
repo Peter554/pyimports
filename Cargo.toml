@@ -28,9 +28,9 @@ lazy_static = "1.5.0"
 itertools = "0.14.0"
 tap = "1.0.1"
 derive_more = { version = "1.0.0", features = ["full"] }
-derive-getters = "0.5.0"
 derive-new = "0.7.0"
 derive_builder = "0.20.2"
+getset = "0.1.3"
 
 [dev-dependencies]
 parameterized = "2.0.0"

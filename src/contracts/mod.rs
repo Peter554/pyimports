@@ -2,8 +2,8 @@
 
 use crate::{ImportsInfo, PackageItemToken};
 use anyhow::Result;
-use derive_getters::Getters;
 use derive_new::new;
+use getset::{CopyGetters, Getters};
 use std::collections::HashSet;
 
 pub mod layers;
@@ -30,15 +30,16 @@ pub enum ContractViolation {
 }
 
 /// An import path which is forbidden.
-#[derive(Debug, Clone, PartialEq, new, Getters)]
+#[derive(Debug, Clone, PartialEq, new, Getters, CopyGetters)]
 pub struct ForbiddenImport {
     /// The start of the forbidden import path.
-    #[getter(copy)]
+    #[getset(get_copy = "pub")]
     from: PackageItemToken,
     /// The end of the forbidden import path.
-    #[getter(copy)]
+    #[getset(get_copy = "pub")]
     to: PackageItemToken,
     /// Items by which the import path is allowed.
     #[new(into)]
+    #[getset(get = "pub")]
     except_via: HashSet<PackageItemToken>,
 }

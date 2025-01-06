@@ -5,6 +5,7 @@ use crate::Error;
 use crate::{IntoPypath, Pypath};
 use anyhow::Result;
 use core::fmt;
+use getset::{CopyGetters, Getters};
 use maplit::hashset;
 pub use queries::PackageItemIterator;
 use slotmap::{new_key_type, SlotMap};
@@ -28,23 +29,30 @@ new_key_type! {
 
 /// A python package.
 /// See also [PackageItem].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Getters, CopyGetters)]
 pub struct Package {
     /// The absolute filesystem path to this package.
-    pub path: PathBuf,
+    #[getset(get = "pub")]
+    path: PathBuf,
     /// The absolute pypath to this package.
-    pub pypath: Pypath,
+    #[getset(get = "pub")]
+    pypath: Pypath,
 
     /// This package.
-    pub token: PackageToken,
+    #[getset(get_copy = "pub")]
+    token: PackageToken,
     /// The parent package.
-    pub parent: Option<PackageToken>,
+    #[getset(get_copy = "pub")]
+    parent: Option<PackageToken>,
     /// Child packages.
-    pub packages: HashSet<PackageToken>,
+    #[getset(get = "pub")]
+    packages: HashSet<PackageToken>,
     /// Child modules.
-    pub modules: HashSet<ModuleToken>,
+    #[getset(get = "pub")]
+    modules: HashSet<ModuleToken>,
     /// The init module.
-    pub init_module: Option<ModuleToken>,
+    #[getset(get_copy = "pub")]
+    init_module: Option<ModuleToken>,
 }
 
 impl fmt::Display for Package {
@@ -75,19 +83,24 @@ impl Package {
 
 /// A python module.
 /// See also [PackageItem].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Getters, CopyGetters)]
 pub struct Module {
     /// The absolute filesystem path to this module.
-    pub path: PathBuf,
+    #[getset(get = "pub")]
+    path: PathBuf,
     /// The absolute pypath to this module.
-    pub pypath: Pypath,
+    #[getset(get = "pub")]
+    pypath: Pypath,
     /// True if this is an init module.
-    pub is_init: bool,
+    #[getset(get_copy = "pub")]
+    is_init: bool,
 
     /// This module.
-    pub token: ModuleToken,
+    #[getset(get_copy = "pub")]
+    token: ModuleToken,
     /// The parent package.
-    pub parent: PackageToken,
+    #[getset(get_copy = "pub")]
+    parent: PackageToken,
 }
 
 impl fmt::Display for Module {
@@ -151,13 +164,13 @@ impl Module {
 /// ```
 #[derive(Debug, Clone)]
 pub struct PackageInfo {
-    pub(crate) root: PackageToken,
-    pub(crate) packages: SlotMap<PackageToken, Package>,
-    pub(crate) modules: SlotMap<ModuleToken, Module>,
-    pub(crate) packages_by_path: HashMap<PathBuf, PackageToken>,
-    pub(crate) packages_by_pypath: HashMap<Pypath, PackageToken>,
-    pub(crate) modules_by_path: HashMap<PathBuf, ModuleToken>,
-    pub(crate) modules_by_pypath: HashMap<Pypath, ModuleToken>,
+    root: PackageToken,
+    packages: SlotMap<PackageToken, Package>,
+    modules: SlotMap<ModuleToken, Module>,
+    packages_by_path: HashMap<PathBuf, PackageToken>,
+    packages_by_pypath: HashMap<Pypath, PackageToken>,
+    modules_by_path: HashMap<PathBuf, ModuleToken>,
+    modules_by_pypath: HashMap<Pypath, ModuleToken>,
 }
 
 /// A unified representation of an item within a package.

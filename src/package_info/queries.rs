@@ -172,7 +172,7 @@ impl PackageInfo {
     /// # };
     /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
     /// let children = package_info
-    ///     .get_child_items(package_info.get_root().token)?
+    ///     .get_child_items(package_info.get_root().token())?
     ///     .collect::<Vec<PackageItem>>();
     /// # Ok(())
     /// # }
@@ -214,7 +214,7 @@ impl PackageInfo {
     /// # };
     /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
     /// let descendants = package_info
-    ///     .get_descendant_items(package_info.get_root().token)?
+    ///     .get_descendant_items(package_info.get_root().token())?
     ///     .collect::<Vec<PackageItem>>();
     /// # Ok(())
     /// # }

@@ -156,9 +156,9 @@ impl ImportsInfo {
 
         // By definition, packages import their init modules.
         for package in package_info.get_all_items().filter_packages() {
-            if let Some(init_module) = package.init_module {
+            if let Some(init_module) = package.init_module() {
                 imports_info.add_internal_import(
-                    package.token.into(),
+                    package.token().into(),
                     init_module.into(),
                     ImportMetadata::ImplicitImport,
                 )?;
@@ -359,7 +359,7 @@ fn get_all_raw_imports(
             HashMap::new,
             |mut hm: HashMap<PackageItemToken, Vec<ResolvedRawImport>>, module| -> Result<_> {
                 // Parse the raw imports.
-                let raw_imports = parse::parse_imports(&module.path)?;
+                let raw_imports = parse::parse_imports(module.path())?;
 
                 // Resolve any relative imports.
                 let raw_imports = raw_imports
@@ -367,13 +367,13 @@ fn get_all_raw_imports(
                     .map(|o| ResolvedRawImport {
                         pypath: o
                             .pypath
-                            .resolve_relative(&module.path, &package_info.get_root().path),
+                            .resolve_relative(module.path(), package_info.get_root().path()),
                         line_number: o.line_number,
                         is_typechecking: o.is_typechecking,
                     })
                     .collect::<Vec<_>>();
 
-                hm.entry(module.token.into())
+                hm.entry(module.token().into())
                     .or_default()
                     .extend(raw_imports);
 

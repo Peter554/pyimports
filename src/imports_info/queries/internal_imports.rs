@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use derive_builder::Builder;
-use derive_getters::Getters;
 use derive_new::new;
+use getset::Getters;
 use pathfinding::prelude::{bfs, bfs_reach};
 
 use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken};
@@ -19,10 +19,12 @@ pub struct InternalImportsQueries<'a> {
 pub struct InternalImportsPathQuery {
     /// Package items from which paths may start.
     #[new(into)]
+    #[getset(get = "pub")]
     from: HashSet<PackageItemToken>,
 
     /// Package items where paths may end.
     #[new(into)]
+    #[getset(get = "pub")]
     to: HashSet<PackageItemToken>,
 
     /// Paths that would go via these package items should be excluded.
@@ -86,8 +88,9 @@ pub struct InternalImportsPathQuery {
     /// # Ok(())
     /// # }
     /// ```
-    #[builder(default)]
     #[new(into)]
+    #[getset(get = "pub")]
+    #[builder(default)]
     excluding_paths_via: HashSet<PackageItemToken>,
 }
 
