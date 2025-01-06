@@ -15,7 +15,7 @@ use anyhow::Result;
 use maplit::{hashmap,hashset};
 
 use pyimports::prelude::*;
-use pyimports::{PackageInfo,ImportsInfo,PackageItemToken,InternalImportsPathQuery};
+use pyimports::{PackageInfo,ImportsInfo,PackageItemToken,InternalImportsPathQueryBuilder};
 
 // You shouldn't use `testpackage!`, it just creates a fake python package
 // in a temporary directory. It's (unfortunately) included in the public API
@@ -63,9 +63,10 @@ fn main() -> Result<()> {
 
     assert_eq!(
         imports_info.internal_imports().find_path(
-            &InternalImportsPathQuery::new()
+            &InternalImportsPathQueryBuilder::default()
                 .from(root_pkg)
                 .to(d)
+                .build()?
         )?,
         Some(vec![root_pkg, root_init, b, d])
     );

@@ -20,7 +20,8 @@ pub use testutils::TestPackage;
 pub use errors::Error;
 pub use imports_info::{
     ExplicitImportMetadata, ExternalImportsQueries, ImportMetadata, ImportsInfo,
-    ImportsInfoBuildOptions, InternalImportsPathQuery, InternalImportsQueries,
+    ImportsInfoBuildOptions, InternalImportsPathQuery, InternalImportsPathQueryBuilder,
+    InternalImportsQueries,
 };
 pub use package_info::{
     ExtendWithDescendants, Module, ModuleToken, Package, PackageInfo, PackageItem,

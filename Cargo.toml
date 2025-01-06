@@ -30,6 +30,7 @@ tap = "1.0.1"
 derive_more = { version = "1.0.0", features = ["full"] }
 derive-getters = "0.5.0"
 derive-new = "0.7.0"
+derive_builder = "0.20.2"
 
 [dev-dependencies]
 parameterized = "2.0.0"

@@ -100,7 +100,9 @@
 //! ```
 
 use crate::contracts::{ContractViolation, ForbiddenImport, ImportsContract};
-use crate::{ExtendWithDescendants, ImportsInfo, InternalImportsPathQuery, PackageItemToken};
+use crate::{
+    ExtendWithDescendants, ImportsInfo, InternalImportsPathQueryBuilder, PackageItemToken,
+};
 use anyhow::Result;
 use itertools::Itertools;
 use maplit::hashset;
@@ -191,10 +193,11 @@ impl ImportsContract for LayeredArchitectureContract {
                     .with_descendants(imports_info.package_info());
 
                 let path = imports_info.internal_imports().find_path(
-                    &InternalImportsPathQuery::new()
+                    &InternalImportsPathQueryBuilder::default()
                         .from(from)
                         .to(to)
-                        .excluding_paths_via(except_via),
+                        .excluding_paths_via(except_via)
+                        .build()?,
                 )?;
                 if let Some(path) = path {
                     violations.push(ContractViolation::ForbiddenImport {
