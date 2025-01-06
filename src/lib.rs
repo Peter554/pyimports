@@ -21,7 +21,7 @@ pub use errors::Error;
 pub use imports_info::{
     ExplicitImportMetadata, ExternalImportsQueries, ImportMetadata, ImportsInfo,
     ImportsInfoBuildOptions, InternalImportsPathQuery, InternalImportsPathQueryBuilder,
-    InternalImportsQueries,
+    InternalImportsPathQueryBuilderError, InternalImportsQueries,
 };
 pub use package_info::{
     ExtendWithDescendants, Module, ModuleToken, Package, PackageInfo, PackageItem,

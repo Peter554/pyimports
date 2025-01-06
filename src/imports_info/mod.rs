@@ -3,7 +3,8 @@ mod queries;
 
 pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::{
-    InternalImportsPathQuery, InternalImportsPathQueryBuilder, InternalImportsQueries,
+    InternalImportsPathQuery, InternalImportsPathQueryBuilder,
+    InternalImportsPathQueryBuilderError, InternalImportsQueries,
 };
 use crate::{
     package_info::{PackageInfo, PackageItemToken},
