@@ -1,14 +1,16 @@
-//! The contracts module provides functionality to define and verify [Contract]s.
+//! The contracts module provides functionality to define and verify [ImportsContract]s.
 
 use crate::{ImportsInfo, PackageItemToken};
 use anyhow::Result;
+use derive_getters::Getters;
+use derive_new::new;
 use std::collections::HashSet;
 
 pub mod layers;
 
-/// A contract defines a set of verifiable conditions
-/// related to package imports that we wish to enforce.
-pub trait Contract {
+/// An imports contract defines a set of verifiable conditions
+/// related to imports that we wish to enforce.
+pub trait ImportsContract {
     /// Verify the contract, returning a vector of violations.
     /// The violations are not guaranteed to be exhaustive - this is up to the
     /// specific contract implementation.
@@ -28,29 +30,15 @@ pub enum ContractViolation {
 }
 
 /// An import path which is forbidden.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, new, Getters)]
 pub struct ForbiddenImport {
     /// The start of the forbidden import path.
-    pub from: PackageItemToken,
+    #[getter(copy)]
+    from: PackageItemToken,
     /// The end of the forbidden import path.
-    pub to: PackageItemToken,
+    #[getter(copy)]
+    to: PackageItemToken,
     /// Items by which the import path is allowed.
-    pub except_via: HashSet<PackageItemToken>,
-}
-
-impl ForbiddenImport {
-    /// Creates a new [ForbiddenImport] from `from` to `to`.
-    pub fn new(from: PackageItemToken, to: PackageItemToken) -> Self {
-        ForbiddenImport {
-            from,
-            to,
-            except_via: HashSet::new(),
-        }
-    }
-
-    /// Allows imports via the passed items.
-    pub fn except_via(mut self, items: &HashSet<PackageItemToken>) -> Self {
-        self.except_via.extend(items);
-        self
-    }
+    #[new(into)]
+    except_via: HashSet<PackageItemToken>,
 }

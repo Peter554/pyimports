@@ -14,7 +14,7 @@
 //! # use anyhow::Result;
 //! # use pyimports::{testpackage,TestPackage};
 //! use pyimports::{PackageInfo,ImportsInfo};
-//! use pyimports::contracts::Contract;
+//! use pyimports::contracts::ImportsContract;
 //! use pyimports::contracts::layers::{LayeredArchitectureContract,Layer};
 //!
 //! # fn main() -> Result<()> {
@@ -52,9 +52,10 @@
 //! ```
 //! # use anyhow::Result;
 //! # use maplit::hashset;
+//! # use std::collections::HashSet;
 //! # use pyimports::{testpackage,TestPackage};
 //! use pyimports::{PackageInfo,ImportsInfo};
-//! use pyimports::contracts::{Contract,ContractViolation,ForbiddenImport};
+//! use pyimports::contracts::{ImportsContract,ContractViolation,ForbiddenImport};
 //! use pyimports::contracts::layers::{LayeredArchitectureContract,Layer};
 //!
 //! # fn main() -> Result<()> {
@@ -89,7 +90,7 @@
 //!     violations,
 //!     vec![
 //!         ContractViolation::ForbiddenImport {
-//!             forbidden_import: ForbiddenImport::new(application, interfaces),
+//!             forbidden_import: ForbiddenImport::new(application, interfaces, HashSet::new()),
 //!             path: vec![application, interfaces],
 //!         },
 //!     ]
@@ -98,10 +99,11 @@
 //! # }
 //! ```
 
-use crate::contracts::{Contract, ContractViolation, ForbiddenImport};
+use crate::contracts::{ContractViolation, ForbiddenImport, ImportsContract};
 use crate::{ExtendWithDescendants, ImportsInfo, InternalImportsPathQuery, PackageItemToken};
 use anyhow::Result;
 use itertools::Itertools;
+use maplit::hashset;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use tap::prelude::*;
@@ -150,7 +152,7 @@ impl LayeredArchitectureContract {
     }
 }
 
-impl Contract for LayeredArchitectureContract {
+impl ImportsContract for LayeredArchitectureContract {
     fn verify(&self, imports_info: &ImportsInfo) -> Result<Vec<ContractViolation>> {
         // Assumption: It's best/reasonable to clone here and remove the ignored imports from the graph.
         // An alternative could be to ignore the imports dynamically via a new field on `InternalImportsPathQuery`.
@@ -181,7 +183,7 @@ impl Contract for LayeredArchitectureContract {
                     .conv::<HashSet<PackageItemToken>>()
                     .extend_with_descendants(imports_info.package_info());
                 let except_via = forbidden_import
-                    .except_via
+                    .except_via()
                     .clone()
                     .extend_with_descendants(imports_info.package_info());
 
@@ -237,8 +239,11 @@ fn get_forbidden_imports(layers: &[Layer], allow_deep_imports: bool) -> Vec<Forb
         for higher_layer in layers[idx + 1..].iter() {
             for layer_sibling in layer.siblings.iter() {
                 for higher_layer_sibling in higher_layer.siblings.iter() {
-                    forbidden_imports
-                        .push(ForbiddenImport::new(*layer_sibling, *higher_layer_sibling));
+                    forbidden_imports.push(ForbiddenImport::new(
+                        *layer_sibling,
+                        *higher_layer_sibling,
+                        hashset! {},
+                    ));
                 }
             }
         }
@@ -250,10 +255,11 @@ fn get_forbidden_imports(layers: &[Layer], allow_deep_imports: bool) -> Vec<Forb
                 for lower_layer in layers[..idx - 1].iter() {
                     for layer_sibling in layer.siblings.iter() {
                         for lower_layer_sibling in lower_layer.siblings.iter() {
-                            forbidden_imports.push(
-                                ForbiddenImport::new(*layer_sibling, *lower_layer_sibling)
-                                    .except_via(&directly_lower_layer.siblings.clone()),
-                            );
+                            forbidden_imports.push(ForbiddenImport::new(
+                                *layer_sibling,
+                                *lower_layer_sibling,
+                                directly_lower_layer.siblings.clone(),
+                            ));
                         }
                     }
                 }
@@ -263,7 +269,11 @@ fn get_forbidden_imports(layers: &[Layer], allow_deep_imports: bool) -> Vec<Forb
         // Independent siblings should not import each other.
         if layer.siblings_independent {
             for permutation in layer.siblings.iter().permutations(2) {
-                forbidden_imports.push(ForbiddenImport::new(*permutation[0], *permutation[1]));
+                forbidden_imports.push(ForbiddenImport::new(
+                    *permutation[0],
+                    *permutation[1],
+                    hashset! {},
+                ));
             }
         }
     }
@@ -301,37 +311,34 @@ mod tests {
 
         let expected = vec![
             // data may not import domain, application or interfaces
-            ForbiddenImport::new(data, domain1),
-            ForbiddenImport::new(data, domain2),
-            ForbiddenImport::new(data, application1),
-            ForbiddenImport::new(data, application2),
-            ForbiddenImport::new(data, interfaces),
+            ForbiddenImport::new(data, domain1, hashset! {}),
+            ForbiddenImport::new(data, domain2, hashset! {}),
+            ForbiddenImport::new(data, application1, hashset! {}),
+            ForbiddenImport::new(data, application2, hashset! {}),
+            ForbiddenImport::new(data, interfaces, hashset! {}),
             // domain may not import application or interfaces
             // (domain may import data)
-            ForbiddenImport::new(domain1, application1),
-            ForbiddenImport::new(domain1, application2),
-            ForbiddenImport::new(domain1, interfaces),
-            ForbiddenImport::new(domain2, application1),
-            ForbiddenImport::new(domain2, application2),
-            ForbiddenImport::new(domain2, interfaces),
+            ForbiddenImport::new(domain1, application1, hashset! {}),
+            ForbiddenImport::new(domain1, application2, hashset! {}),
+            ForbiddenImport::new(domain1, interfaces, hashset! {}),
+            ForbiddenImport::new(domain2, application1, hashset! {}),
+            ForbiddenImport::new(domain2, application2, hashset! {}),
+            ForbiddenImport::new(domain2, interfaces, hashset! {}),
             // domain1 and domain2 are independent siblings
-            ForbiddenImport::new(domain1, domain2),
-            ForbiddenImport::new(domain2, domain1),
+            ForbiddenImport::new(domain1, domain2, hashset! {}),
+            ForbiddenImport::new(domain2, domain1, hashset! {}),
             // application may not import interfaces
             // application may not import data, except via domain
             // (application may import domain)
-            ForbiddenImport::new(application1, interfaces),
-            ForbiddenImport::new(application1, data).except_via(&hashset! {domain1, domain2}),
-            ForbiddenImport::new(application2, interfaces),
-            ForbiddenImport::new(application2, data).except_via(&hashset! {domain1, domain2}),
+            ForbiddenImport::new(application1, interfaces, hashset! {}),
+            ForbiddenImport::new(application1, data, hashset! {domain1, domain2}),
+            ForbiddenImport::new(application2, interfaces, hashset! {}),
+            ForbiddenImport::new(application2, data, hashset! {domain1, domain2}),
             // interfaces may not import data or domain, except via application
             // (application may import application)
-            ForbiddenImport::new(interfaces, data)
-                .except_via(&hashset! {application1, application2}),
-            ForbiddenImport::new(interfaces, domain1)
-                .except_via(&hashset! {application1, application2}),
-            ForbiddenImport::new(interfaces, domain2)
-                .except_via(&hashset! {application1, application2}),
+            ForbiddenImport::new(interfaces, data, hashset! {application1, application2}),
+            ForbiddenImport::new(interfaces, domain1, hashset! {application1, application2}),
+            ForbiddenImport::new(interfaces, domain2, hashset! {application1, application2}),
         ];
 
         assert_eq!(forbidden_imports.len(), expected.len(),);
@@ -416,17 +423,15 @@ import testpackage.data
 
         let expected_violations = vec![
             ContractViolation::ForbiddenImport {
-                forbidden_import: ForbiddenImport::new(application, interfaces),
+                forbidden_import: ForbiddenImport::new(application, interfaces, hashset! {}),
                 path: vec![application, interfaces],
             },
             ContractViolation::ForbiddenImport {
-                forbidden_import: ForbiddenImport::new(interfaces, data)
-                    .except_via(&hashset! {application}),
+                forbidden_import: ForbiddenImport::new(interfaces, data, hashset! {application}),
                 path: vec![interfaces, data],
             },
             ContractViolation::ForbiddenImport {
-                forbidden_import: ForbiddenImport::new(application, data)
-                    .except_via(&hashset! {domain}),
+                forbidden_import: ForbiddenImport::new(application, data, hashset! {domain}),
                 path: vec![application, interfaces, data],
             },
         ];
@@ -475,7 +480,7 @@ import testpackage.data
         let violations = contract.verify(&imports_info)?;
 
         let expected_violations = [ContractViolation::ForbiddenImport {
-            forbidden_import: ForbiddenImport::new(application, interfaces),
+            forbidden_import: ForbiddenImport::new(application, interfaces, hashset! {}),
             path: vec![application, interfaces],
         }];
         assert_eq!(violations.len(), expected_violations.len());
@@ -520,8 +525,7 @@ import testpackage.application
         ]);
         let violations = contract.verify(&imports_info)?;
         let expected_violations = [ContractViolation::ForbiddenImport {
-            forbidden_import: ForbiddenImport::new(application, data)
-                .except_via(&hashset! {domain}),
+            forbidden_import: ForbiddenImport::new(application, data, hashset! {domain}),
             path: vec![application, data],
         }];
         assert_eq!(violations.len(), expected_violations.len());
