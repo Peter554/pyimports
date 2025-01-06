@@ -115,13 +115,13 @@ impl ImportsInfoBuildOptions {
     }
 
     /// Typechecking imports (`typing.TYPE_CHECKING`) should be excluded.
-    pub fn exclude_typechecking_imports(mut self) -> Self {
+    pub fn with_typechecking_imports_excluded(mut self) -> Self {
         self.include_typechecking_imports = false;
         self
     }
 
     /// External imports should be excluded.
-    pub fn exclude_external_imports(mut self) -> Self {
+    pub fn with_external_imports_excluded(mut self) -> Self {
         self.include_external_imports = false;
         self
     }

@@ -65,14 +65,14 @@ impl<'a> DirectoryReader<'a> {
         self
     }
 
-    pub fn exclude_hidden_items(self) -> Self {
+    pub fn with_hidden_items_excluded(self) -> Self {
         self.with_directory_filter(|path| {
             !path.file_name().unwrap().to_str().unwrap().starts_with(".")
         })
         .with_file_filter(|path| !path.file_name().unwrap().to_str().unwrap().starts_with("."))
     }
 
-    pub fn filter_file_extension(self, extension: &'a str) -> Self {
+    pub fn with_file_extension_filter(self, extension: &'a str) -> Self {
         self.with_file_filter(move |path| {
             path.extension().unwrap_or_default().to_str().unwrap() == extension
         })
@@ -183,8 +183,8 @@ mod tests {
         let test_package = create_test_package()?;
 
         let paths = DirectoryReader::new()
-            .exclude_hidden_items()
-            .filter_file_extension("py")
+            .with_hidden_items_excluded()
+            .with_file_extension_filter("py")
             .read(test_package.path())?
             .collect::<Vec<_>>();
 

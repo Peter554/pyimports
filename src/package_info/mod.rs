@@ -362,8 +362,8 @@ impl PackageInfo {
         packages_by_pypath.insert(Pypath::from_path(root_path, root_path)?, root);
 
         let fs_items = filesystem::DirectoryReader::new()
-            .exclude_hidden_items()
-            .filter_file_extension("py")
+            .with_hidden_items_excluded()
+            .with_file_extension_filter("py")
             .read(root_path)?
             .skip(1); // Skip first item since this is the root, which we already have.
 
@@ -482,7 +482,7 @@ impl From<PackageItemToken> for HashSet<PackageItemToken> {
 ///
 /// let package_item_tokens = hashset! {root};
 /// assert_eq!(
-///     package_item_tokens.extend_with_descendants(&package_info),
+///     package_item_tokens.with_descendants(&package_info),
 ///     hashset! {root, a, b, c}
 /// );
 /// # Ok(())
@@ -492,7 +492,7 @@ pub trait ExtendWithDescendants:
     Sized + Clone + IntoIterator<Item = PackageItemToken> + Extend<PackageItemToken>
 {
     /// Extend this collection of package item tokens with all descendant items.
-    fn extend_with_descendants(mut self, package_info: &PackageInfo) -> Self {
+    fn extend_with_descendants(&mut self, package_info: &PackageInfo) {
         for item in self.clone().into_iter() {
             let descendants = match item {
                 PackageItemToken::Package(item) => match package_info.get_descendant_items(item) {
@@ -506,7 +506,11 @@ pub trait ExtendWithDescendants:
             };
             self.extend(descendants);
         }
+    }
 
+    /// Extend this collection of package item tokens with all descendant items.
+    fn with_descendants(mut self, package_info: &PackageInfo) -> Self {
+        self.extend_with_descendants(package_info);
         self
     }
 }

@@ -6,7 +6,7 @@
 //! - Siblings within a layer may be marked as independent, in which case they may
 //!   not import each other.
 //! - Higher layers may import lower layers. By default higher layers may only import from the
-//!   immediately below layer. This restriction may be lifted via [LayeredArchitectureContract::allow_deep_imports].
+//!   immediately below layer. This restriction may be lifted via [LayeredArchitectureContract::with_deep_imports_allowed].
 //!
 //! # Example: Contract kept
 //!
@@ -131,13 +131,16 @@ impl LayeredArchitectureContract {
     }
 
     /// Ignore the passed imports when verifying the contract.
-    pub fn ignore_imports(mut self, imports: &[(PackageItemToken, PackageItemToken)]) -> Self {
+    pub fn with_ignored_imports(
+        mut self,
+        imports: &[(PackageItemToken, PackageItemToken)],
+    ) -> Self {
         self.ignored_imports.extend(imports.to_vec());
         self
     }
 
     /// Ignore typechecking imports when verifying the contract.
-    pub fn ignore_typechecking_imports(mut self) -> Self {
+    pub fn with_typechecking_imports_ignored(mut self) -> Self {
         self.ignore_typechecking_imports = true;
         self
     }
@@ -146,7 +149,7 @@ impl LayeredArchitectureContract {
     ///
     /// By default higher layers may only import the immediately below layer.
     /// `allow_deep_imports` lifts this restriction.   
-    pub fn allow_deep_imports(mut self) -> Self {
+    pub fn with_deep_imports_allowed(mut self) -> Self {
         self.allow_deep_imports = true;
         self
     }
@@ -177,15 +180,15 @@ impl ImportsContract for LayeredArchitectureContract {
                 let from = forbidden_import
                     .from
                     .conv::<HashSet<PackageItemToken>>()
-                    .extend_with_descendants(imports_info.package_info());
+                    .with_descendants(imports_info.package_info());
                 let to = forbidden_import
                     .to
                     .conv::<HashSet<PackageItemToken>>()
-                    .extend_with_descendants(imports_info.package_info());
+                    .with_descendants(imports_info.package_info());
                 let except_via = forbidden_import
                     .except_via()
                     .clone()
-                    .extend_with_descendants(imports_info.package_info());
+                    .with_descendants(imports_info.package_info());
 
                 let path = imports_info.internal_imports().find_path(
                     &InternalImportsPathQuery::new()
@@ -475,7 +478,7 @@ import testpackage.data
             Layer::new([application], true),
             Layer::new([interfaces], true),
         ])
-        .ignore_imports(&[(interfaces, data)]);
+        .with_ignored_imports(&[(interfaces, data)]);
 
         let violations = contract.verify(&imports_info)?;
 
@@ -540,7 +543,7 @@ import testpackage.application
             Layer::new([application], true),
             Layer::new([interfaces], true),
         ])
-        .allow_deep_imports();
+        .with_deep_imports_allowed();
         let violations = contract.verify(&imports_info)?;
         assert!(violations.is_empty());
 
