@@ -15,12 +15,13 @@ use anyhow::Result;
 use maplit::{hashmap,hashset};
 
 use pyimports::prelude::*;
-use pyimports::{PackageInfo,ImportsInfo,PackageItemToken,InternalImportsPathQueryBuilder};
+use pyimports::package_info::{PackageInfo,PackageItemToken};
+use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
 
 // You shouldn't use `testpackage!`, it just creates a fake python package
 // in a temporary directory. It's (unfortunately) included in the public API
 // so that it can be used in the doctests.
-use pyimports::{testpackage,TestPackage};
+use pyimports::{testpackage,testutils::TestPackage};
 
 fn main() -> Result<()> {
     let testpackage = testpackage! {
@@ -57,18 +58,28 @@ fn main() -> Result<()> {
     );
 
     assert_eq!(
-        imports_info.internal_imports().get_downstream_items(root_pkg)?,
-        hashset! {root_init, a, b, c, d}
+        imports_info.internal_imports().get_items_directly_imported_by(root_init)?,
+        hashset! {a, b}
+    );
+
+    assert_eq!(
+        imports_info.internal_imports().get_items_that_directly_import(d)?,
+        hashset! {b, c}
+    );
+    
+    assert_eq!(
+        imports_info.internal_imports().get_downstream_items(root_init)?,
+        hashset! {a, b, c, d}
     );
 
     assert_eq!(
         imports_info.internal_imports().find_path(
             &InternalImportsPathQueryBuilder::default()
-                .from(root_pkg)
+                .from(root_init)
                 .to(d)
                 .build()?
         )?,
-        Some(vec![root_pkg, root_init, b, d])
+        Some(vec![root_init, b, d])
     );
 
     Ok(())

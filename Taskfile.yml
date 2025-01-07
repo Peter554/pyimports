@@ -3,15 +3,15 @@ version: "3"
 tasks:
   test:
     cmds:
-      - cargo test
+      - cargo test --all-features
 
   check.clippy:
     cmds:
-      - cargo clippy --all-targets -- -D warnings
+      - cargo clippy --all-targets --all-features -- -D warnings
 
   fix.clippy:
     cmds:
-      - cargo clippy --fix --allow-staged
+      - cargo clippy --all-targets --all-features --fix --allow-staged
 
   check.fmt:
     cmds:
@@ -36,11 +36,11 @@ tasks:
       - task: check
       - task: check.uncommitted-changes
       - cargo bump {{.MODE}}
-      - cargo publish --dry-run --allow-dirty
+      - cargo publish --all-features --dry-run --allow-dirty
       - git add --all
       - git commit -m "Bump version v$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[0].version')"
       - git tag "v$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[0].version')"
-      - cargo publish
+      - cargo publish --all-features
       - git push
       - git push --tags
 

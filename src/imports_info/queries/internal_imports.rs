@@ -1,12 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::errors::Error;
+use crate::imports_info::{ImportMetadata, ImportsInfo};
+use crate::package_info::PackageItemToken;
 use anyhow::Result;
 use derive_builder::Builder;
 use derive_new::new;
 use getset::Getters;
 use pathfinding::prelude::{bfs, bfs_reach};
-
-use crate::{Error, ImportMetadata, ImportsInfo, PackageItemToken};
 
 /// An object that allows querying internal imports.
 pub struct InternalImportsQueries<'a> {
@@ -32,10 +33,12 @@ pub struct InternalImportsPathQuery {
     /// ```
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
-    /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,InternalImportsPathQuery,InternalImportsPathQueryBuilder};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "",
     ///     "a.py" => "from testpackage import b, e",
     ///     "b.py" => "from testpackage import c",
@@ -44,7 +47,7 @@ pub struct InternalImportsPathQuery {
     ///     "e.py" => "from testpackage import d"
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let a = imports_info.package_info()
@@ -107,14 +110,17 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a",
     ///     "a.py" => "from django.db import models"
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_pkg = imports_info.package_info()
@@ -148,14 +154,17 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a",
     ///     "a.py" => "from django.db import models"
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
@@ -196,16 +205,19 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a, b",
     ///     "a.py" => "from testpackage import b",
     ///     "b.py" => "from testpackage import c",
     ///     "c.py" => ""
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
@@ -245,16 +257,19 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a, b",
     ///     "a.py" => "from testpackage import b",
     ///     "b.py" => "from testpackage import c",
     ///     "c.py" => ""
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
@@ -294,16 +309,19 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a, b",
     ///     "a.py" => "from testpackage import b",
     ///     "b.py" => "from testpackage import c",
     ///     "c.py" => ""
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
@@ -339,16 +357,19 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a, b",
     ///     "a.py" => "from testpackage import b",
     ///     "b.py" => "from testpackage import c",
     ///     "c.py" => ""
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_pkg = imports_info.package_info()
@@ -416,14 +437,17 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,ImportMetadata,ExplicitImportMetadata};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder,ImportMetadata};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a",
     ///     "a.py" => ""
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
@@ -435,10 +459,10 @@ impl<'a> InternalImportsQueries<'a> {
     ///
     /// assert_eq!(
     ///     imports_info.internal_imports().get_import_metadata(root_init, a)?,
-    ///     &ImportMetadata::ExplicitImport(ExplicitImportMetadata {
+    ///     &ImportMetadata::ExplicitImport {
     ///         line_number: 1,
     ///         is_typechecking: false
-    ///     })
+    ///     }
     /// );
     /// # Ok(())
     /// # }
@@ -466,16 +490,19 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,InternalImportsPathQuery, InternalImportsPathQueryBuilder};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a, b",
     ///     "a.py" => "from testpackage import b",
     ///     "b.py" => "from testpackage import c",
     ///     "c.py" => ""
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
@@ -557,16 +584,19 @@ impl<'a> InternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,InternalImportsPathQuery,InternalImportsPathQueryBuilder};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,InternalImportsPathQueryBuilder};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a, b",
     ///     "a.py" => "from testpackage import b",
     ///     "b.py" => "from testpackage import c",
     ///     "c.py" => ""
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
@@ -607,7 +637,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{testpackage, testutils::TestPackage, Error, ExplicitImportMetadata, PackageInfo};
+    use crate::package_info::PackageInfo;
+    use crate::{testpackage, testutils::TestPackage};
 
     #[test]
     fn test_get_direct_imports() -> Result<()> {
@@ -811,10 +842,10 @@ from testpackage import books",
         let metadata = internal_imports.get_import_metadata(root_package_init, fruit)?;
         assert_eq!(
             metadata,
-            &ImportMetadata::ExplicitImport(ExplicitImportMetadata {
+            &ImportMetadata::ExplicitImport {
                 line_number: 1,
                 is_typechecking: false
-            })
+            }
         );
 
         let metadata = internal_imports.get_import_metadata(root_package, fruit);

@@ -1,4 +1,4 @@
-//! The layers module provides a [LayeredArchitectureContract], which enforces a layered architecture.
+//! The layers module provides a [`LayeredArchitectureContract`], which enforces a layered architecture.
 //!
 //! A layered architecture involves a set of layers, with rules for imports between layers:
 //!
@@ -6,14 +6,16 @@
 //! - Siblings within a layer may be marked as independent, in which case they may
 //!   not import each other.
 //! - Higher layers may import lower layers. By default higher layers may only import from the
-//!   immediately below layer. This restriction may be lifted via [LayeredArchitectureContract::with_deep_imports_allowed].
+//!   immediately below layer. This restriction may be lifted via [`LayeredArchitectureContract::with_deep_imports_allowed`].
 //!
 //! # Example: Contract kept
 //!
 //! ```
 //! # use anyhow::Result;
-//! # use pyimports::{testpackage,TestPackage};
-//! use pyimports::{PackageInfo,ImportsInfo};
+//! # use pyimports::{testpackage};
+//! # use pyimports::testutils::TestPackage;
+//! use pyimports::package_info::PackageInfo;
+//! use pyimports::imports_info::ImportsInfo;
 //! use pyimports::contracts::ImportsContract;
 //! use pyimports::contracts::layers::{LayeredArchitectureContract,Layer};
 //!
@@ -40,9 +42,9 @@
 //!     Layer::new([interfaces], true),
 //! ]);
 //!
-//! let violations = contract.verify(&imports_info)?;
+//! let result = contract.verify(&imports_info)?;
 //!
-//! assert!(violations.is_empty());
+//! assert!(result.is_kept());
 //! # Ok(())
 //! # }
 //! ```
@@ -53,8 +55,10 @@
 //! # use anyhow::Result;
 //! # use maplit::hashset;
 //! # use std::collections::HashSet;
-//! # use pyimports::{testpackage,TestPackage};
-//! use pyimports::{PackageInfo,ImportsInfo};
+//! # use pyimports::{testpackage};
+//! # use pyimports::testutils::TestPackage;
+//! use pyimports::package_info::PackageInfo;
+//! use pyimports::imports_info::ImportsInfo;
 //! use pyimports::contracts::{ImportsContract,ContractViolation,ForbiddenImport};
 //! use pyimports::contracts::layers::{LayeredArchitectureContract,Layer};
 //!
@@ -83,9 +87,10 @@
 //!     Layer::new([interfaces], true),
 //! ]);
 //!
-//! let violations = contract.verify(&imports_info)?;
+//! let result = contract.verify(&imports_info)?;
 //!
-//! assert!(!violations.is_empty());
+//! assert!(result.is_violated());
+//! let violations = result.unwrap_violated();
 //! assert_eq!(
 //!     violations,
 //!     vec![
@@ -99,10 +104,12 @@
 //! # }
 //! ```
 
-use crate::contracts::{ContractViolation, ForbiddenImport, ImportsContract};
-use crate::{
-    ExtendWithDescendants, ImportsInfo, InternalImportsPathQueryBuilder, PackageItemToken,
+use crate::contracts::{
+    ContractVerificationResult, ContractViolation, ForbiddenImport, ImportsContract,
 };
+use crate::imports_info::{ImportsInfo, InternalImportsPathQueryBuilder};
+use crate::package_info::PackageItemToken;
+use crate::prelude::*;
 use anyhow::Result;
 use itertools::Itertools;
 use maplit::hashset;
@@ -121,7 +128,7 @@ pub struct LayeredArchitectureContract {
 }
 
 impl LayeredArchitectureContract {
-    /// Create a new [LayeredArchitectureContract].
+    /// Create a new [`LayeredArchitectureContract`].
     /// Layers should be listed from lowest to highest.
     pub fn new(layers: &[Layer]) -> Self {
         LayeredArchitectureContract {
@@ -158,7 +165,7 @@ impl LayeredArchitectureContract {
 }
 
 impl ImportsContract for LayeredArchitectureContract {
-    fn verify(&self, imports_info: &ImportsInfo) -> Result<Vec<ContractViolation>> {
+    fn verify(&self, imports_info: &ImportsInfo) -> Result<ContractVerificationResult> {
         // Assumption: It's best/reasonable to clone here and remove the ignored imports from the graph.
         // An alternative could be to ignore the imports dynamically via a new field on `InternalImportsPathQuery`.
         let imports_info = {
@@ -212,7 +219,11 @@ impl ImportsContract for LayeredArchitectureContract {
                 Ok(all_violations)
             })?;
 
-        Ok(violations)
+        if violations.is_empty() {
+            Ok(ContractVerificationResult::Kept)
+        } else {
+            Ok(ContractVerificationResult::Violated(violations))
+        }
     }
 }
 
@@ -290,7 +301,9 @@ fn get_forbidden_imports(layers: &[Layer], allow_deep_imports: bool) -> Vec<Forb
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{testpackage, PackageInfo, PackageToken, TestPackage};
+    use crate::package_info::{PackageInfo, PackageToken};
+    use crate::testpackage;
+    use crate::testutils::TestPackage;
     use anyhow::Result;
     use maplit::hashset;
     use pretty_assertions::assert_eq;
@@ -386,8 +399,8 @@ import testpackage.application
             Layer::new([interfaces], true),
         ]);
 
-        let violations = contract.verify(&imports_info)?;
-        assert!(violations.is_empty());
+        let result = contract.verify(&imports_info)?;
+        assert!(result.is_kept());
 
         Ok(())
     }
@@ -425,8 +438,9 @@ import testpackage.data
             Layer::new([interfaces], true),
         ]);
 
-        let violations = contract.verify(&imports_info)?;
+        let result = contract.verify(&imports_info)?;
 
+        assert!(result.is_violated());
         let expected_violations = vec![
             ContractViolation::ForbiddenImport {
                 forbidden_import: ForbiddenImport::new(application, interfaces, hashset! {}),
@@ -441,6 +455,7 @@ import testpackage.data
                 path: vec![application, interfaces, data],
             },
         ];
+        let violations = result.unwrap_violated();
         assert_eq!(violations.len(), expected_violations.len());
         for violation in violations.iter() {
             assert!(expected_violations.contains(violation));
@@ -483,12 +498,13 @@ import testpackage.data
         ])
         .with_ignored_imports(&[(interfaces, data)]);
 
-        let violations = contract.verify(&imports_info)?;
+        let result = contract.verify(&imports_info)?;
 
         let expected_violations = [ContractViolation::ForbiddenImport {
             forbidden_import: ForbiddenImport::new(application, interfaces, hashset! {}),
             path: vec![application, interfaces],
         }];
+        let violations = result.unwrap_violated();
         assert_eq!(violations.len(), expected_violations.len());
         for violation in violations.iter() {
             assert!(expected_violations.contains(violation));
@@ -529,11 +545,12 @@ import testpackage.application
             Layer::new([application], true),
             Layer::new([interfaces], true),
         ]);
-        let violations = contract.verify(&imports_info)?;
+        let result = contract.verify(&imports_info)?;
         let expected_violations = [ContractViolation::ForbiddenImport {
             forbidden_import: ForbiddenImport::new(application, data, hashset! {domain}),
             path: vec![application, data],
         }];
+        let violations = result.unwrap_violated();
         assert_eq!(violations.len(), expected_violations.len());
         for violation in violations.iter() {
             assert!(expected_violations.contains(violation));
@@ -547,8 +564,8 @@ import testpackage.application
             Layer::new([interfaces], true),
         ])
         .with_deep_imports_allowed();
-        let violations = contract.verify(&imports_info)?;
-        assert!(violations.is_empty());
+        let result = contract.verify(&imports_info)?;
+        assert!(result.is_kept());
 
         Ok(())
     }
