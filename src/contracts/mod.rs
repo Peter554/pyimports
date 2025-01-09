@@ -8,7 +8,9 @@ use derive_new::new;
 use getset::{CopyGetters, Getters};
 use std::collections::HashSet;
 
+pub mod independent;
 pub mod layers;
+mod utils;
 
 /// An [`ImportsContract`] defines a set of verifiable conditions
 /// related to imports that we wish to enforce.

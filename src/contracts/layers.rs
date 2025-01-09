@@ -1,4 +1,4 @@
-//! The layers module provides a [`LayeredArchitectureContract`], which enforces a layered architecture.
+//! The `layers` module provides a [`LayeredArchitectureContract`], which enforces a layered architecture.
 //!
 //! A layered architecture involves a set of layers, with rules for imports between layers:
 //!
@@ -104,18 +104,14 @@
 //! # }
 //! ```
 
-use crate::contracts::{
-    ContractVerificationResult, ContractViolation, ForbiddenImport, ImportsContract,
-};
-use crate::imports_info::{ImportsInfo, InternalImportsPathQueryBuilder};
+use crate::contracts::utils::find_violations;
+use crate::contracts::{ContractVerificationResult, ForbiddenImport, ImportsContract};
+use crate::imports_info::ImportsInfo;
 use crate::package_info::PackageItemToken;
-use crate::prelude::*;
 use anyhow::Result;
 use itertools::Itertools;
 use maplit::hashset;
-use rayon::prelude::*;
 use std::collections::HashSet;
-use tap::prelude::*;
 
 /// A contract used to enforce a layered architecture.
 /// See the [module-level documentation](./index.html) for more details.
@@ -181,43 +177,7 @@ impl ImportsContract for LayeredArchitectureContract {
 
         let forbidden_imports = get_forbidden_imports(&self.layers, self.allow_deep_imports);
 
-        let violations = forbidden_imports
-            .into_par_iter()
-            .try_fold(Vec::new, |mut violations, forbidden_import| -> Result<_> {
-                // A layers contract operates in "as packages" mode, meaning
-                // items are expanded to include their descendants.
-                let from = forbidden_import
-                    .from
-                    .conv::<HashSet<PackageItemToken>>()
-                    .with_descendants(imports_info.package_info());
-                let to = forbidden_import
-                    .to
-                    .conv::<HashSet<PackageItemToken>>()
-                    .with_descendants(imports_info.package_info());
-                let except_via = forbidden_import
-                    .except_via()
-                    .clone()
-                    .with_descendants(imports_info.package_info());
-
-                let path = imports_info.internal_imports().find_path(
-                    &InternalImportsPathQueryBuilder::default()
-                        .from(from)
-                        .to(to)
-                        .excluding_paths_via(except_via)
-                        .build()?,
-                )?;
-                if let Some(path) = path {
-                    violations.push(ContractViolation::ForbiddenImport {
-                        forbidden_import,
-                        path,
-                    })
-                };
-                Ok(violations)
-            })
-            .try_reduce(Vec::new, |mut all_violations, violations| -> Result<_> {
-                all_violations.extend(violations);
-                Ok(all_violations)
-            })?;
+        let violations = find_violations(forbidden_imports, &imports_info)?;
 
         if violations.is_empty() {
             Ok(ContractVerificationResult::Kept)
@@ -301,6 +261,7 @@ fn get_forbidden_imports(layers: &[Layer], allow_deep_imports: bool) -> Vec<Forb
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contracts::ContractViolation;
     use crate::package_info::{PackageInfo, PackageToken};
     use crate::testpackage;
     use crate::testutils::TestPackage;
