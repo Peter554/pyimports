@@ -8,6 +8,7 @@ use crate::errors::Error;
 use crate::pypath::Pypath;
 use anyhow::Result;
 use core::fmt;
+use derive_more::{IsVariant, Unwrap};
 use getset::{CopyGetters, Getters};
 use maplit::hashset;
 pub use queries::PackageItemIterator;
@@ -203,7 +204,7 @@ pub struct PackageInfo {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, IsVariant, Unwrap)]
 pub enum PackageItem<'a> {
     /// A package.
     Package(&'a Package),
@@ -250,7 +251,7 @@ impl fmt::Display for PackageItem<'_> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap)]
 pub enum PackageItemToken {
     /// A package.
     Package(PackageToken),

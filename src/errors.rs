@@ -1,10 +1,9 @@
 //! Errors
 
-use std::path::PathBuf;
-
 use crate::package_info::{ModuleToken, PackageToken};
 use crate::pypath::Pypath;
 use rustpython_parser::ParseError;
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[allow(missing_docs)]
