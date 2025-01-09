@@ -3,9 +3,12 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
+use crate::errors::Error;
+use crate::imports_info::{ImportMetadata, ImportsInfo};
+use crate::package_info::PackageItemToken;
+use crate::prelude::*;
+use crate::pypath::Pypath;
 use anyhow::Result;
-
-use crate::{Error, ImportMetadata, ImportsInfo, IntoPypath, PackageItemToken, Pypath};
 
 /// An object that allows querying external imports.
 pub struct ExternalImportsQueries<'a> {
@@ -19,14 +22,17 @@ impl<'a> ExternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage, testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::ImportsInfo;
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a",
     ///     "a.py" => "from django.db import models"
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_pkg = imports_info.package_info()
@@ -60,14 +66,17 @@ impl<'a> ExternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage, testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::ImportsInfo;
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a",
     ///     "a.py" => "from django.db import models"
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
@@ -109,14 +118,17 @@ impl<'a> ExternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+    /// # use pyimports::{testpackage, testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::ImportsInfo;
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a",
     ///     "a.py" => "from django.db import models; import pydantic.BaseModel as BM"
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let a = imports_info.package_info()
@@ -153,14 +165,17 @@ impl<'a> ExternalImportsQueries<'a> {
     /// # use std::collections::HashSet;
     /// # use anyhow::Result;
     /// # use maplit::{hashmap, hashset};
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo,ImportMetadata,ExplicitImportMetadata};
+    /// # use pyimports::{testpackage, testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,ImportMetadata};
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "from testpackage import a",
     ///     "a.py" => "from django.db import models"
     /// };
     ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
+    /// let package_info = PackageInfo::build(testpackage.path())?;
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let a = imports_info.package_info()
@@ -169,10 +184,10 @@ impl<'a> ExternalImportsQueries<'a> {
     ///
     /// assert_eq!(
     ///     imports_info.external_imports().get_import_metadata(a, "django.db.models")?,
-    ///     &ImportMetadata::ExplicitImport(ExplicitImportMetadata {
+    ///     &ImportMetadata::ExplicitImport {
     ///         line_number: 1,
     ///         is_typechecking: false
-    ///     })
+    ///     }
     /// );
     /// # Ok(())
     /// # }
@@ -202,7 +217,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{testpackage, testutils::TestPackage, ExplicitImportMetadata, PackageInfo};
+    use crate::package_info::PackageInfo;
+    use crate::{testpackage, testutils::TestPackage};
 
     #[test]
     fn test_get_direct_imports() -> Result<()> {
@@ -268,10 +284,10 @@ mod tests {
 
         assert_eq!(
             metadata,
-            &ImportMetadata::ExplicitImport(ExplicitImportMetadata {
+            &ImportMetadata::ExplicitImport {
                 line_number: 1,
                 is_typechecking: false
-            })
+            }
         );
 
         Ok(())

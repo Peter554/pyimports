@@ -1,11 +1,11 @@
-use anyhow::Result;
-use std::borrow::Borrow;
-use std::path::Path;
-
+use crate::errors::Error;
 use crate::package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
-use crate::{Error, IntoPypath};
+use crate::prelude::*;
+use anyhow::Result;
+use std::borrow::Borrow;
+use std::path::Path;
 
 /// An iterator over package items.
 pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
@@ -13,15 +13,16 @@ pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// # use pyimports::{testpackage};
+    /// # use pyimports::testutils::TestPackage;
     /// use pyimports::prelude::*;
-    /// use pyimports::Package;
+    /// use pyimports::package_info::{PackageInfo,Package};
     ///
     /// # fn main() -> Result<()> {
-    /// # let test_package = testpackage! {
+    /// # let testpackage = testpackage! {
     /// #     "__init__.py" => ""
     /// # };
-    /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
+    /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
     /// let packages = package_info
     ///     .get_all_items()
     ///     .filter_packages()
@@ -40,15 +41,16 @@ pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// # use pyimports::{testpackage};
+    /// # use pyimports::testutils::TestPackage;
     /// use pyimports::prelude::*;
-    /// use pyimports::Module;
+    /// use pyimports::package_info::{PackageInfo,Module};
     ///
     /// # fn main() -> Result<()> {
-    /// # let test_package = testpackage! {
+    /// # let testpackage = testpackage! {
     /// #     "__init__.py" => ""
     /// # };
-    /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
+    /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
     /// let modules = package_info
     ///     .get_all_items()
     ///     .filter_modules()
@@ -82,16 +84,17 @@ impl PackageInfo {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use pyimports::{testpackage,TestPackage};
-    /// use pyimports::PackageInfo;
+    /// # use pyimports::{testpackage};
+    /// # use pyimports::testutils::TestPackage;
+    /// use pyimports::package_info::PackageInfo;
     ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => "",
     ///     "foo.py" => ""
     /// };
     ///
-    /// let package_info = PackageInfo::build(&test_package.path())?;
+    /// let package_info = PackageInfo::build(&testpackage.path())?;
     ///
     /// let foo = package_info.get_item_by_pypath("testpackage.foo")?;
     /// assert!(foo.is_some());
@@ -162,15 +165,16 @@ impl PackageInfo {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// # use pyimports::{testpackage};
+    /// # use pyimports::testutils::TestPackage;
     /// use pyimports::prelude::*;
-    /// use pyimports::PackageItem;
+    /// use pyimports::package_info::{PackageItem,PackageInfo};
     ///
     /// # fn main() -> Result<()> {
-    /// # let test_package = testpackage! {
+    /// # let testpackage = testpackage! {
     /// #     "__init__.py" => ""
     /// # };
-    /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
+    /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
     /// let children = package_info
     ///     .get_child_items(package_info.get_root().token())?
     ///     .collect::<Vec<PackageItem>>();
@@ -204,15 +208,16 @@ impl PackageInfo {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// # use pyimports::{testpackage};
+    /// # use pyimports::testutils::TestPackage;
     /// use pyimports::prelude::*;
-    /// use pyimports::PackageItem;
+    /// use pyimports::package_info::{PackageInfo,PackageItem};
     ///
     /// # fn main() -> Result<()> {
-    /// # let test_package = testpackage! {
+    /// # let testpackage = testpackage! {
     /// #     "__init__.py" => ""
     /// # };
-    /// # let package_info = PackageInfo::build(test_package.path()).unwrap();
+    /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
     /// let descendants = package_info
     ///     .get_descendant_items(package_info.get_root().token())?
     ///     .collect::<Vec<PackageItem>>();
@@ -252,7 +257,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::collections::HashSet;
 
-    fn create_test_package() -> Result<TestPackage> {
+    fn create_testpackage() -> Result<TestPackage> {
         Ok(testpackage! {
             "__init__.py" => "",
             "main.py" => "",
@@ -268,8 +273,8 @@ mod tests {
 
     #[test]
     fn test_get_parent_item() -> Result<()> {
-        let test_package = create_test_package()?;
-        let package_info = PackageInfo::build(test_package.path())?;
+        let testpackage = create_testpackage()?;
+        let package_info = PackageInfo::build(testpackage.path())?;
 
         let root_package = package_info.get_root();
         let colors_package = package_info
@@ -299,8 +304,8 @@ mod tests {
 
     #[test]
     fn test_get_child_items() -> Result<()> {
-        let test_package = create_test_package()?;
-        let package_info = PackageInfo::build(test_package.path())?;
+        let testpackage = create_testpackage()?;
+        let package_info = PackageInfo::build(testpackage.path())?;
 
         assert_eq!(
             package_info
@@ -321,8 +326,8 @@ mod tests {
 
     #[test]
     fn test_get_descendant_items() -> Result<()> {
-        let test_package = create_test_package()?;
-        let package_info = PackageInfo::build(test_package.path())?;
+        let testpackage = create_testpackage()?;
+        let package_info = PackageInfo::build(testpackage.path())?;
 
         assert_eq!(
             package_info
@@ -353,8 +358,8 @@ mod tests {
 
     #[test]
     fn test_get_all_items() -> Result<()> {
-        let test_package = create_test_package()?;
-        let package_info = PackageInfo::build(test_package.path())?;
+        let testpackage = create_testpackage()?;
+        let package_info = PackageInfo::build(testpackage.path())?;
 
         assert_eq!(
             package_info

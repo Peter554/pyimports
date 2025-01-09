@@ -1,35 +1,34 @@
-mod parse;
+//! The `imports_info` module provides a rich representation of the imports within a python package.
+//! See [`ImportsInfo`].
 mod queries;
 
+use crate::errors::Error;
 pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
 pub use crate::imports_info::queries::internal_imports::{
     InternalImportsPathQuery, InternalImportsPathQueryBuilder,
     InternalImportsPathQueryBuilderError, InternalImportsQueries,
 };
-use crate::{
-    package_info::{PackageInfo, PackageItemToken},
-    Error, PackageItemIterator, Pypath,
-};
+use crate::package_info::{PackageInfo, PackageItemToken};
+use crate::parse;
+use crate::parse::resolve_import;
+use crate::prelude::*;
+use crate::pypath::Pypath;
 use anyhow::Result;
 use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-/// An explicit import statement.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExplicitImportMetadata {
-    /// The line number of the import statement.
-    pub line_number: usize,
-    /// Whether the import statement is for typechecking only (`typing.TYPE_CHECKING`).
-    pub is_typechecking: bool,
-}
-
 /// Metadata associated with an import.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImportMetadata {
     /// An explicit import.
-    ExplicitImport(ExplicitImportMetadata),
+    ExplicitImport {
+        /// The line number of the import statement.
+        line_number: usize,
+        /// Whether the import statement is for typechecking only (`typing.TYPE_CHECKING`).
+        is_typechecking: bool,
+    },
     /// An implicit import. E.g. all packages implicitly import their init modules.
     ImplicitImport,
 }
@@ -40,14 +39,18 @@ pub enum ImportMetadata {
 /// # use std::collections::HashSet;
 /// # use anyhow::Result;
 /// # use maplit::{hashmap, hashset};
-/// # use pyimports::{testpackage,TestPackage,PackageInfo,ImportsInfo};
+/// # use pyimports::testpackage;
+/// # use pyimports::testutils::TestPackage;
+/// use pyimports::package_info::PackageInfo;
+/// use pyimports::imports_info::ImportsInfo;
+///
 /// # fn main() -> Result<()> {
-/// let test_package = testpackage! {
+/// let testpackage = testpackage! {
 ///     "__init__.py" => "from testpackage import a",
 ///     "a.py" => "from django.db import models"
 /// };
 ///
-/// let package_info = PackageInfo::build(test_package.path())?;
+/// let package_info = PackageInfo::build(testpackage.path())?;
 /// let imports_info = ImportsInfo::build(package_info)?;
 ///
 /// let root_pkg = imports_info.package_info()
@@ -93,7 +96,7 @@ pub struct ImportsInfo {
     external_imports_metadata: HashMap<(PackageItemToken, Pypath), ImportMetadata>,
 }
 
-/// Options for building an [ImportsInfo].
+/// Options for building an [`ImportsInfo`].
 #[derive(Debug, Clone)]
 pub struct ImportsInfoBuildOptions {
     include_typechecking_imports: bool,
@@ -129,12 +132,12 @@ impl ImportsInfoBuildOptions {
 }
 
 impl ImportsInfo {
-    /// Builds an [ImportsInfo] with the default options.
+    /// Builds an [`ImportsInfo`] with the default options.
     pub fn build(package_info: PackageInfo) -> Result<Self> {
         ImportsInfo::build_with_options(package_info, ImportsInfoBuildOptions::new())
     }
 
-    /// Builds an [ImportsInfo] with custom options.
+    /// Builds an [`ImportsInfo`] with custom options.
     pub fn build_with_options(
         package_info: PackageInfo,
         options: ImportsInfoBuildOptions,
@@ -171,12 +174,12 @@ impl ImportsInfo {
                     continue;
                 }
 
-                let metadata = ImportMetadata::ExplicitImport(ExplicitImportMetadata {
+                let metadata = ImportMetadata::ExplicitImport {
                     line_number: raw_import.line_number,
                     is_typechecking: raw_import.is_typechecking,
-                });
+                };
 
-                if package_info.pypath_is_internal(&raw_import.pypath)? {
+                if raw_import.pypath.is_internal(&package_info) {
                     let internal_item = {
                         if let Some(item) = package_info
                             .get_item_by_pypath(&raw_import.pypath)?
@@ -207,17 +210,17 @@ impl ImportsInfo {
         Ok(imports_info)
     }
 
-    /// Returns a reference to the contained [PackageInfo].
+    /// Returns a reference to the contained [`PackageInfo`].
     pub fn package_info(&self) -> &PackageInfo {
         &self.package_info
     }
 
-    /// Returns an [InternalImportsQueries] object, that allows querying internal imports.
+    /// Returns an [`InternalImportsQueries`] object, that allows querying internal imports.
     pub fn internal_imports(&self) -> InternalImportsQueries {
         InternalImportsQueries { imports_info: self }
     }
 
-    /// Returns an [ExternalImportsQueries] object, that allows querying external imports.
+    /// Returns an [`ExternalImportsQueries`] object, that allows querying external imports.
     pub fn external_imports(&self) -> ExternalImportsQueries {
         ExternalImportsQueries { imports_info: self }
     }
@@ -243,8 +246,10 @@ impl ImportsInfo {
             .internal_imports_metadata
             .iter()
             .filter_map(|((from, to), metadata)| match metadata {
-                ImportMetadata::ExplicitImport(metadata) => {
-                    if metadata.is_typechecking {
+                ImportMetadata::ExplicitImport {
+                    is_typechecking, ..
+                } => {
+                    if *is_typechecking {
                         Some((*from, *to))
                     } else {
                         None
@@ -258,8 +263,10 @@ impl ImportsInfo {
             .external_imports_metadata
             .iter()
             .filter_map(|((from, to), metadata)| match metadata {
-                ImportMetadata::ExplicitImport(metadata) => {
-                    if metadata.is_typechecking {
+                ImportMetadata::ExplicitImport {
+                    is_typechecking, ..
+                } => {
+                    if *is_typechecking {
                         Some((*from, to.clone()))
                     } else {
                         None
@@ -364,12 +371,15 @@ fn get_all_raw_imports(
                 // Resolve any relative imports.
                 let raw_imports = raw_imports
                     .into_iter()
-                    .map(|o| ResolvedRawImport {
-                        pypath: o
-                            .pypath
-                            .resolve_relative(module.path(), package_info.get_root().path()),
-                        line_number: o.line_number,
-                        is_typechecking: o.is_typechecking,
+                    .map(|raw_import| ResolvedRawImport {
+                        pypath: resolve_import(
+                            raw_import.pypath(),
+                            module.path(),
+                            package_info.get_root().path(),
+                        )
+                        .unwrap(),
+                        line_number: raw_import.line_number(),
+                        is_typechecking: raw_import.is_typechecking(),
                     })
                     .collect::<Vec<_>>();
 
@@ -398,7 +408,7 @@ mod tests {
 
     #[test]
     fn test_build() -> Result<()> {
-        let test_package = testpackage! {
+        let testpackage = testpackage! {
             "__init__.py" => "
 from testpackage import a
 from testpackage import b
@@ -413,7 +423,7 @@ from django.db import models
 "
         };
 
-        let package_info = PackageInfo::build(test_package.path())?;
+        let package_info = PackageInfo::build(testpackage.path())?;
         let imports_info = ImportsInfo::build(package_info)?;
 
         let root_package = imports_info._item("testpackage");
@@ -445,18 +455,18 @@ from django.db import models
             imports_info.internal_imports_metadata,
             hashmap! {
                 (root_package, root_package_init) => ImportMetadata::ImplicitImport,
-                (root_package_init, a) => ImportMetadata::ExplicitImport(ExplicitImportMetadata {
+                (root_package_init, a) => ImportMetadata::ExplicitImport {
                     line_number: 2,
                     is_typechecking: false,
-                }),
-                (root_package_init, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                },
+                (root_package_init, b) => ImportMetadata::ExplicitImport{
                     line_number: 3,
                     is_typechecking: false,
-                }),
-                (a, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                },
+                (a, b) => ImportMetadata::ExplicitImport{
                     line_number: 2,
                     is_typechecking: false,
-                })
+                }
             }
         );
 
@@ -473,10 +483,10 @@ from django.db import models
         assert_eq!(
             imports_info.external_imports_metadata,
             hashmap! {
-                (b, "django.db.models".parse()?) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                (b, "django.db.models".parse()?) => ImportMetadata::ExplicitImport{
                     line_number: 2,
                     is_typechecking: false,
-                }),
+                },
             }
         );
 
@@ -485,7 +495,7 @@ from django.db import models
 
     #[test]
     fn test_remove_imports() -> Result<()> {
-        let test_package = testpackage! {
+        let testpackage = testpackage! {
             "__init__.py" => "
 import testpackage.a
 from testpackage import b
@@ -494,7 +504,7 @@ from testpackage import b
             "b.py" => ""
         };
 
-        let package_info = PackageInfo::build(test_package.path())?;
+        let package_info = PackageInfo::build(testpackage.path())?;
         let mut imports_info = ImportsInfo::build(package_info)?;
 
         let root_package = imports_info._item("testpackage");
@@ -526,14 +536,14 @@ from testpackage import b
             imports_info.internal_imports_metadata,
             hashmap! {
                 (root_package, root_package_init) => ImportMetadata::ImplicitImport,
-                (root_package_init, a) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                (root_package_init, a) => ImportMetadata::ExplicitImport{
                     line_number: 2,
                     is_typechecking: false,
-                }),
-                (root_package_init, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                },
+                (root_package_init, b) => ImportMetadata::ExplicitImport{
                     line_number: 3,
                     is_typechecking: false,
-                }),
+                },
             }
         );
 
@@ -563,10 +573,10 @@ from testpackage import b
             imports_info.internal_imports_metadata,
             hashmap! {
                 (root_package, root_package_init) => ImportMetadata::ImplicitImport,
-                (root_package_init, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                (root_package_init, b) => ImportMetadata::ExplicitImport{
                     line_number: 3,
                     is_typechecking: false,
-                }),
+                },
             }
         );
 
@@ -575,7 +585,7 @@ from testpackage import b
 
     #[test]
     fn test_remove_typechecking_imports() -> Result<()> {
-        let test_package = testpackage! {
+        let testpackage = testpackage! {
             "__init__.py" => "
 from typing import TYPE_CHECKING
 
@@ -588,7 +598,7 @@ if TYPE_CHECKING:
             "b.py" => ""
         };
 
-        let package_info = PackageInfo::build(test_package.path())?;
+        let package_info = PackageInfo::build(testpackage.path())?;
         let mut imports_info = ImportsInfo::build(package_info)?;
 
         let root_package = imports_info._item("testpackage");
@@ -620,14 +630,14 @@ if TYPE_CHECKING:
             imports_info.internal_imports_metadata,
             hashmap! {
                 (root_package, root_package_init) => ImportMetadata::ImplicitImport,
-                (root_package_init, a) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                (root_package_init, a) => ImportMetadata::ExplicitImport{
                     line_number: 4,
                     is_typechecking: false,
-                }),
-                (root_package_init, b) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                },
+                (root_package_init, b) => ImportMetadata::ExplicitImport{
                     line_number: 7,
                     is_typechecking: true,
-                }),
+                },
             }
         );
 
@@ -657,10 +667,10 @@ if TYPE_CHECKING:
             imports_info.internal_imports_metadata,
             hashmap! {
                 (root_package, root_package_init) => ImportMetadata::ImplicitImport,
-                (root_package_init, a) => ImportMetadata::ExplicitImport(ExplicitImportMetadata{
+                (root_package_init, a) => ImportMetadata::ExplicitImport{
                     line_number: 4,
                     is_typechecking: false,
-                }),
+                },
             }
         );
 

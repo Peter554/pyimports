@@ -122,7 +122,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::collections::HashSet;
 
-    fn create_test_package() -> Result<TestPackage> {
+    fn create_testpackage() -> Result<TestPackage> {
         Ok(testpackage!(
             "__init__.py" => "",
             "main.py" => "",
@@ -138,10 +138,10 @@ mod tests {
 
     #[test]
     fn test_build() -> Result<()> {
-        let test_package = create_test_package()?;
+        let testpackage = create_testpackage()?;
 
         let paths = DirectoryReader::new()
-            .read(test_package.path())?
+            .read(testpackage.path())?
             .collect::<Vec<_>>();
 
         assert_eq!(paths.len(), 13);
@@ -156,22 +156,22 @@ mod tests {
                 })
                 .collect::<HashSet<_>>(),
             hashset![
-                test_package.path().to_path_buf(),
-                test_package.path().join("__init__.py"),
-                test_package.path().join("main.py"),
+                testpackage.path().to_path_buf(),
+                testpackage.path().join("__init__.py"),
+                testpackage.path().join("main.py"),
                 //
-                test_package.path().join("food"),
-                test_package.path().join("food/__init__.py"),
-                test_package.path().join("food/pizza.py"),
+                testpackage.path().join("food"),
+                testpackage.path().join("food/__init__.py"),
+                testpackage.path().join("food/pizza.py"),
                 //
-                test_package.path().join("food/fruit"),
-                test_package.path().join("food/fruit/__init__.py"),
-                test_package.path().join("food/fruit/apple.py"),
+                testpackage.path().join("food/fruit"),
+                testpackage.path().join("food/fruit/__init__.py"),
+                testpackage.path().join("food/fruit/apple.py"),
                 //
-                test_package.path().join("foo.txt"),
-                test_package.path().join(".gitignore"),
-                test_package.path().join(".linter"),
-                test_package.path().join(".linter/config"),
+                testpackage.path().join("foo.txt"),
+                testpackage.path().join(".gitignore"),
+                testpackage.path().join(".linter"),
+                testpackage.path().join(".linter/config"),
             ]
         );
 
@@ -180,12 +180,12 @@ mod tests {
 
     #[test]
     fn test_build_with_filters() -> Result<()> {
-        let test_package = create_test_package()?;
+        let testpackage = create_testpackage()?;
 
         let paths = DirectoryReader::new()
             .with_hidden_items_excluded()
             .with_file_extension_filter("py")
-            .read(test_package.path())?
+            .read(testpackage.path())?
             .collect::<Vec<_>>();
 
         assert_eq!(paths.len(), 9);
@@ -200,17 +200,17 @@ mod tests {
                 })
                 .collect::<HashSet<_>>(),
             hashset![
-                test_package.path().to_path_buf(),
-                test_package.path().join("__init__.py"),
-                test_package.path().join("main.py"),
+                testpackage.path().to_path_buf(),
+                testpackage.path().join("__init__.py"),
+                testpackage.path().join("main.py"),
                 //
-                test_package.path().join("food"),
-                test_package.path().join("food/__init__.py"),
-                test_package.path().join("food/pizza.py"),
+                testpackage.path().join("food"),
+                testpackage.path().join("food/__init__.py"),
+                testpackage.path().join("food/pizza.py"),
                 //
-                test_package.path().join("food/fruit"),
-                test_package.path().join("food/fruit/__init__.py"),
-                test_package.path().join("food/fruit/apple.py"),
+                testpackage.path().join("food/fruit"),
+                testpackage.path().join("food/fruit/__init__.py"),
+                testpackage.path().join("food/fruit/apple.py"),
             ]
         );
 

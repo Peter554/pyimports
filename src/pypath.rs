@@ -1,14 +1,16 @@
+//! The `pypath` module provides utilities for working with dotted python import paths.
+
 use std::borrow::Borrow;
 use std::path::Path;
 use std::str::FromStr;
 
+use crate::errors::Error;
+use crate::package_info::PackageInfo;
 use anyhow::Result;
 use derive_more::derive::{Display, Into};
 use derive_more::Deref;
 use lazy_static::lazy_static;
 use regex::Regex;
-
-use crate::Error;
 
 lazy_static! {
     static ref PYPATH_REGEX: Regex = Regex::new(r"^\w+(\.\w+)*$").unwrap();
@@ -16,10 +18,8 @@ lazy_static! {
 
 /// The absolute dotted path to a python package/module/member.
 ///
-/// # Example
-///
 /// ```
-/// use pyimports::Pypath;
+/// use pyimports::pypath::Pypath;
 ///
 /// let result  = "foo.bar".parse::<Pypath>();
 /// assert!(result.is_ok());
@@ -32,6 +32,7 @@ lazy_static! {
 pub struct Pypath(String);
 
 impl Pypath {
+    /// Use `new` internally to skip validation.
     pub(crate) fn new(s: &str) -> Pypath {
         Pypath(s.to_string())
     }
@@ -57,15 +58,13 @@ impl Pypath {
             s = s.strip_suffix(".py").unwrap();
         }
         let s = s.replace("/", ".");
-        Ok(Pypath::new(&s))
+        Ok(Pypath(s))
     }
 
     /// Returns true if this pypath is equal to or an ancestor of the passed pypath.
     ///
-    /// # Example
-    ///
     /// ```
-    /// use pyimports::Pypath;
+    /// use pyimports::pypath::Pypath;
     ///
     /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
     /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
@@ -79,10 +78,8 @@ impl Pypath {
 
     /// Returns true if this pypath is equal to or a descendant of the passed pypath.
     ///
-    /// # Example
-    ///
     /// ```
-    /// use pyimports::Pypath;
+    /// use pyimports::pypath::Pypath;
     ///
     /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
     /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
@@ -96,10 +93,8 @@ impl Pypath {
 
     /// Returns the parent of this pypath.
     ///
-    /// # Example
-    ///
     /// ```
-    /// use pyimports::Pypath;
+    /// use pyimports::pypath::Pypath;
     ///
     /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
     /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
@@ -111,10 +106,58 @@ impl Pypath {
         v.pop();
         Pypath(v.join("."))
     }
+
+    /// Checks whether this pypath is internal to the passed package.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::pypath::Pypath;
+    ///
+    /// # fn main() -> Result<()> {
+    /// let testpackage = testpackage! {
+    ///     "__init__.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(testpackage.path())?;
+    ///
+    /// assert!("testpackage.foo".parse::<Pypath>()?.is_internal(&package_info));
+    /// assert!(!"django.db.models".parse::<Pypath>()?.is_internal(&package_info));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn is_internal(&self, package_info: &PackageInfo) -> bool {
+        let root_pypath = package_info.get_root().pypath();
+        root_pypath.is_equal_to_or_ancestor_of(self)
+    }
+
+    /// Checks whether this pypath is external to the passed package.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::pypath::Pypath;
+    ///
+    /// # fn main() -> Result<()> {
+    /// let testpackage = testpackage! {
+    ///     "__init__.py" => ""
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(testpackage.path())?;
+    ///
+    /// assert!(!"testpackage.foo".parse::<Pypath>()?.is_external(&package_info));
+    /// assert!("django.db.models".parse::<Pypath>()?.is_external(&package_info));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn is_external(&self, package_info: &PackageInfo) -> bool {
+        !self.is_internal(package_info)
+    }
 }
 
-// TODO: Is there some way to achieve this via the TryFrom/TryInto trait?
-/// A trait that can be used as a bound to generic functions that want
+/// [`IntoPypath`] is a trait that can be used as a bound to generic functions that want
 /// to accept a [`Pypath`], `&Pypath` or a `&str`.
 ///
 /// ```
@@ -122,7 +165,7 @@ impl Pypath {
 /// use std::borrow::Borrow;
 ///
 /// use pyimports::prelude::*;
-/// use pyimports::Pypath;
+/// use pyimports::pypath::Pypath;
 ///
 /// fn f<T: IntoPypath>(pypath: T) -> Result<()> {
 ///     let pypath = pypath.into_pypath()?;
@@ -142,7 +185,7 @@ impl Pypath {
 /// # }
 /// ```
 pub trait IntoPypath {
-    /// Convert into a [Pypath].
+    /// Convert into a [`Pypath`].
     fn into_pypath(self) -> Result<impl Borrow<Pypath>>;
 }
 
@@ -161,9 +204,9 @@ impl IntoPypath for &str {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-
     use super::*;
+    use crate::{testpackage, testutils::TestPackage};
+    use anyhow::Result;
 
     #[test]
     fn test_pypath_from_str() -> Result<()> {
@@ -204,6 +247,42 @@ mod tests {
     fn test_parent() -> Result<()> {
         assert_eq!(Pypath::new("foo.bar.baz").parent(), Pypath::new("foo.bar"));
         assert_eq!(Pypath::new("foo.bar").parent(), Pypath::new("foo"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_internal() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => ""
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+
+        assert!("testpackage.foo"
+            .parse::<Pypath>()?
+            .is_internal(&package_info));
+        assert!(!"django.db.models"
+            .parse::<Pypath>()?
+            .is_internal(&package_info));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_external() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => ""
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+
+        assert!(!"testpackage.foo"
+            .parse::<Pypath>()?
+            .is_external(&package_info));
+        assert!("django.db.models"
+            .parse::<Pypath>()?
+            .is_external(&package_info));
 
         Ok(())
     }

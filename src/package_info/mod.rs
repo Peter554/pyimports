@@ -1,8 +1,11 @@
+//! The `package_info` module provides a rich representation of a python package.
+//! See [`PackageInfo`].
+
 mod filesystem;
 mod queries;
 
-use crate::Error;
-use crate::{IntoPypath, Pypath};
+use crate::errors::Error;
+use crate::pypath::Pypath;
 use anyhow::Result;
 use core::fmt;
 use getset::{CopyGetters, Getters};
@@ -10,25 +13,24 @@ use maplit::hashset;
 pub use queries::PackageItemIterator;
 use slotmap::{new_key_type, SlotMap};
 use std::{
-    borrow::Borrow,
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
 new_key_type! {
-    /// A token used to identify a python package within [PackageInfo].
-    /// See also [PackageItemToken].
+    /// A token used to identify a python package within [`PackageInfo`].
+    /// See also [`PackageItemToken`].
     pub struct PackageToken;
 }
 
 new_key_type! {
-    /// A token used to identify a python module within [PackageInfo].
-    /// See also [PackageItemToken].
+    /// A token used to identify a python module within [`PackageInfo`].
+    /// See also [`PackageItemToken`].
     pub struct ModuleToken;
 }
 
 /// A python package.
-/// See also [PackageItem].
+/// See also [`PackageItem`].
 #[derive(Debug, Clone, PartialEq, Getters, CopyGetters)]
 pub struct Package {
     /// The absolute filesystem path to this package.
@@ -82,7 +84,7 @@ impl Package {
 }
 
 /// A python module.
-/// See also [PackageItem].
+/// See also [`PackageItem`].
 #[derive(Debug, Clone, PartialEq, Getters, CopyGetters)]
 pub struct Module {
     /// The absolute filesystem path to this module.
@@ -132,16 +134,18 @@ impl Module {
 /// ```
 /// # use std::collections::HashSet;
 /// # use anyhow::Result;
-/// # use pyimports::{testpackage,TestPackage,PackageInfo};
+/// # use pyimports::{testpackage,testutils::TestPackage};
+/// use pyimports::package_info::PackageInfo;
+///
 /// # fn main() -> Result<()> {
-/// let test_package = testpackage! {
+/// let testpackage = testpackage! {
 ///     "__init__.py" => "",
 ///     "a.py" => "",
 ///     "b/__init__.py" => "",
 ///     "b/c.py" => ""
 /// };
 ///
-/// let package_info = PackageInfo::build(test_package.path())?;
+/// let package_info = PackageInfo::build(testpackage.path())?;
 ///
 /// let all_items = package_info
 ///     .get_all_items()
@@ -178,13 +182,15 @@ pub struct PackageInfo {
 /// ```
 /// # use std::collections::HashSet;
 /// # use anyhow::Result;
-/// # use pyimports::{testpackage,TestPackage,PackageInfo,PackageItem,Package,Module};
+/// # use pyimports::{testpackage,testutils::TestPackage};
+/// use pyimports::package_info::{PackageInfo,Package,Module,PackageItem};
+///
 /// # fn main() -> Result<()> {
-/// let test_package = testpackage! {
+/// let testpackage = testpackage! {
 ///     "__init__.py" => ""
 /// };
 ///
-/// let package_info = PackageInfo::build(test_package.path())?;
+/// let package_info = PackageInfo::build(testpackage.path())?;
 ///
 /// let root_pkg: PackageItem = package_info.get_item_by_pypath("testpackage")?.unwrap();
 /// let root_init: PackageItem = package_info.get_item_by_pypath("testpackage.__init__")?.unwrap();
@@ -214,18 +220,20 @@ impl fmt::Display for PackageItem<'_> {
     }
 }
 
-/// A unified token for a [PackageItem] within [PackageInfo].
+/// A unified token for a [`PackageItem`] within [`PackageInfo`].
 ///
 /// ```
 /// # use std::collections::HashSet;
 /// # use anyhow::Result;
-/// # use pyimports::{testpackage,TestPackage,PackageInfo,PackageItemToken,PackageToken,ModuleToken};
+/// # use pyimports::{testpackage,testutils::TestPackage};
+/// use pyimports::package_info::{PackageInfo,PackageToken,ModuleToken,PackageItemToken};
+///
 /// # fn main() -> Result<()> {
-/// let test_package = testpackage! {
+/// let testpackage = testpackage! {
 ///     "__init__.py" => ""
 /// };
 ///
-/// let package_info = PackageInfo::build(test_package.path())?;
+/// let package_info = PackageInfo::build(testpackage.path())?;
 ///
 /// let root_pkg: PackageItemToken = package_info
 ///     .get_item_by_pypath("testpackage")?.unwrap()
@@ -345,18 +353,20 @@ impl<'a> PackageItem<'a> {
 }
 
 impl PackageInfo {
-    /// Builds [PackageInfo] from the passed filesystem path.
+    /// Builds [`PackageInfo`] from the passed filesystem path.
     /// The passed filesystem path should be the path to the root package.
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
+    /// # use pyimports::{testpackage,testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    ///
     /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
+    /// let testpackage = testpackage! {
     ///     "__init__.py" => ""
     /// };
     ///
-    /// let result = PackageInfo::build(test_package.path());
+    /// let result = PackageInfo::build(testpackage.path());
     /// assert!(result.is_ok());
     /// # Ok(())
     /// # }
@@ -419,50 +429,6 @@ impl PackageInfo {
             modules_by_pypath,
         })
     }
-
-    /// Checks whether the passed pypath is internal.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
-    /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
-    ///     "__init__.py" => ""
-    /// };
-    ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
-    ///
-    /// assert!(package_info.pypath_is_internal("testpackage.foo")?);
-    /// assert!(!package_info.pypath_is_internal("django.db.models")?);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn pypath_is_internal<T: IntoPypath>(&self, pypath: T) -> Result<bool> {
-        let pypath = pypath.into_pypath()?;
-        let root_pypath = &self.get_root().pypath;
-        Ok(root_pypath.is_equal_to_or_ancestor_of(pypath.borrow()))
-    }
-
-    /// Checks whether the passed pypath is external.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use pyimports::{testpackage,TestPackage,PackageInfo};
-    /// # fn main() -> Result<()> {
-    /// let test_package = testpackage! {
-    ///     "__init__.py" => ""
-    /// };
-    ///
-    /// let package_info = PackageInfo::build(test_package.path())?;
-    ///
-    /// assert!(!package_info.pypath_is_external("testpackage.foo")?);
-    /// assert!(package_info.pypath_is_external("django.db.models")?);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn pypath_is_external<T: IntoPypath>(&self, pypath: T) -> Result<bool> {
-        Ok(!self.pypath_is_internal(pypath)?)
-    }
 }
 
 impl From<PackageItemToken> for HashSet<PackageItemToken> {
@@ -476,9 +442,9 @@ impl From<PackageItemToken> for HashSet<PackageItemToken> {
 /// ```
 /// # use anyhow::Result;
 /// # use maplit::hashset;
-/// # use pyimports::{testpackage,TestPackage};
+/// # use pyimports::{testpackage,testutils::TestPackage};
 /// use pyimports::prelude::*;
-/// use pyimports::{PackageInfo,PackageItemToken};
+/// use pyimports::package_info::PackageInfo;
 ///
 /// # fn main() -> Result<()> {
 /// let testpackage = testpackage! {
@@ -542,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_build() -> Result<()> {
-        let test_package = testpackage! {
+        let testpackage = testpackage! {
             "__init__.py" => "",
             "main.py" => "",
             "colors/__init__.py" => "",
@@ -550,7 +516,7 @@ mod tests {
             "data.txt" => ""
         };
 
-        let package_info = PackageInfo::build(test_package.path())?;
+        let package_info = PackageInfo::build(testpackage.path())?;
 
         let root_package_token = *package_info
             .packages_by_pypath
@@ -602,36 +568,6 @@ mod tests {
         let main = package_info.modules.get(main_token).unwrap();
         assert_eq!(main.is_init, false);
         assert_eq!(main.parent, root_package_token);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_pypath_is_internal() -> Result<()> {
-        let test_package = testpackage! {
-            "__init__.py" => ""
-        };
-
-        let package_info = PackageInfo::build(test_package.path())?;
-
-        assert!(package_info.pypath_is_internal("testpackage".parse::<Pypath>()?)?);
-        assert!(package_info.pypath_is_internal("testpackage.foo")?);
-        assert!(!package_info.pypath_is_internal("django.db.models")?);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_pypath_is_external() -> Result<()> {
-        let test_package = testpackage! {
-            "__init__.py" => ""
-        };
-
-        let package_info = PackageInfo::build(test_package.path())?;
-
-        assert!(!package_info.pypath_is_external("testpackage")?);
-        assert!(!package_info.pypath_is_external("testpackage.foo")?);
-        assert!(package_info.pypath_is_external("django.db.models")?);
 
         Ok(())
     }

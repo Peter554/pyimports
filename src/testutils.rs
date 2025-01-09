@@ -1,3 +1,5 @@
+use crate::imports_info::ImportsInfo;
+use crate::package_info::{PackageInfo, PackageItemToken};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs;
@@ -5,8 +7,6 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempdir::TempDir;
-
-use crate::{ImportsInfo, PackageInfo, PackageItemToken};
 
 #[doc(hidden)]
 pub struct TestPackage {
@@ -20,14 +20,14 @@ impl TestPackage {
         let temp_dir = TempDir::new("")?;
         let dir_path = temp_dir.path().join(name);
         fs::create_dir(&dir_path)?;
-        let test_package = TestPackage {
+        let testpackage = TestPackage {
             _temp_dir: temp_dir,
             dir_path,
         };
         for (path, contents) in modules.into_iter() {
-            test_package.add_file(path, contents)?;
+            testpackage.add_file(path, contents)?;
         }
-        Ok(test_package)
+        Ok(testpackage)
     }
 
     pub fn path(&self) -> &Path {
@@ -48,11 +48,11 @@ impl TestPackage {
 #[macro_export]
 macro_rules! testpackage {
     ($($k:expr => $v:expr),*) => {{
-        let test_package = TestPackage::new("testpackage", std::collections::HashMap::new())?;
+        let testpackage = TestPackage::new("testpackage", std::collections::HashMap::new())?;
         $(
-            test_package.add_file($k, $v)?;
+            testpackage.add_file($k, $v)?;
         )*
-        test_package
+        testpackage
     }};
 }
 
