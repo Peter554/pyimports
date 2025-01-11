@@ -1,5 +1,6 @@
 //! The `pypath` module provides utilities for working with dotted python import paths.
 
+use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -9,6 +10,7 @@ use anyhow::Result;
 use derive_more::derive::{Display, Into};
 use derive_more::Deref;
 use lazy_static::lazy_static;
+use maplit::hashset;
 use regex::Regex;
 
 lazy_static! {
@@ -156,6 +158,17 @@ impl Pypath {
     }
 }
 
+impl From<Pypath> for HashSet<Pypath> {
+    fn from(p: Pypath) -> Self {
+        hashset! {p}
+    }
+}
+
+impl From<&Pypath> for HashSet<Pypath> {
+    fn from(p: &Pypath) -> Self {
+        hashset! {p.clone()}
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

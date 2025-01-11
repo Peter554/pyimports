@@ -3,7 +3,10 @@
 mod queries;
 
 use crate::errors::Error;
-pub use crate::imports_info::queries::external_imports::ExternalImportsQueries;
+pub use crate::imports_info::queries::external_imports::{
+    ExternalImportsPathQuery, ExternalImportsPathQueryBuilder,
+    ExternalImportsPathQueryBuilderError, ExternalImportsQueries,
+};
 pub use crate::imports_info::queries::internal_imports::{
     InternalImportsPathQuery, InternalImportsPathQueryBuilder,
     InternalImportsPathQueryBuilderError, InternalImportsQueries,

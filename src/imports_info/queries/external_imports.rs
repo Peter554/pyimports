@@ -1,14 +1,47 @@
-use std::collections::{HashMap, HashSet};
-
 use crate::errors::Error;
 use crate::imports_info::{ImportMetadata, ImportsInfo};
 use crate::package_info::PackageItemToken;
 use crate::pypath::Pypath;
 use anyhow::Result;
+use derive_builder::Builder;
+use derive_more::{IsVariant, Unwrap};
+use derive_new::new;
+use getset::Getters;
+use maplit::hashset;
+use pathfinding::prelude::bfs;
+use std::collections::{HashMap, HashSet};
 
 /// An object that allows querying external imports.
 pub struct ExternalImportsQueries<'a> {
     pub(crate) imports_info: &'a ImportsInfo,
+}
+
+/// An object representing an external imports path query.
+#[derive(Debug, Clone, new, Getters, Builder)]
+#[builder(setter(into))]
+pub struct ExternalImportsPathQuery {
+    /// Package items from which paths may start.
+    #[new(into)]
+    #[getset(get = "pub")]
+    from: HashSet<PackageItemToken>,
+
+    /// External items where paths may end.
+    #[new(into)]
+    #[getset(get = "pub")]
+    to: HashSet<Pypath>,
+
+    /// Paths that would go via these package items should be excluded.
+    #[new(into)]
+    #[getset(get = "pub")]
+    #[builder(default)]
+    excluding_paths_via: HashSet<PackageItemToken>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, IsVariant, Unwrap)]
+enum PathfindingNode<'a> {
+    Initial,
+    PackageItem(&'a PackageItemToken),
+    ExternalItem(&'a Pypath),
 }
 
 impl<'a> ExternalImportsQueries<'a> {
@@ -262,6 +295,124 @@ impl<'a> ExternalImportsQueries<'a> {
         }
     }
 
+    /// Returns the shortest import path or `None` if no path can be found.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage, testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::{ImportsInfo,ImportMetadata,ExternalImportsPathQueryBuilder};
+    ///
+    /// # fn main() -> Result<()> {
+    /// let testpackage = testpackage! {
+    ///     "__init__.py" => "",
+    ///     "a.py" => "from testpackage import b",
+    ///     "b.py" => "from testpackage import c",
+    ///     "c.py" => "from django.db import models"
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(testpackage.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
+    ///     .token();
+    /// let b = imports_info.package_info()
+    ///     .get_item_by_pypath(&"testpackage.b".parse()?).unwrap()
+    ///     .token();
+    /// let c = imports_info.package_info()
+    ///     .get_item_by_pypath(&"testpackage.c".parse()?).unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.external_imports().find_path(
+    ///         &ExternalImportsPathQueryBuilder::default()
+    ///             .from(a)
+    ///             .to(&"django.db.models".parse()?)
+    ///             .build()?
+    ///     )?,
+    ///     Some((vec![a, b, c], "django.db.models".parse()?))
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn find_path(
+        &'a self,
+        query: &ExternalImportsPathQuery,
+    ) -> Result<Option<(Vec<PackageItemToken>, Pypath)>> {
+        for item in query.from.iter() {
+            self.imports_info.package_info.get_item(*item)?;
+        }
+        for item in query.excluding_paths_via.iter() {
+            self.imports_info.package_info.get_item(*item)?;
+        }
+
+        let empty_package_items = hashset! {};
+        let empty_external_items = hashset! {};
+
+        let path = bfs(
+            &PathfindingNode::Initial,
+            // Successors
+            |item| {
+                let internal_items = match item {
+                    PathfindingNode::Initial => &query.from,
+                    PathfindingNode::PackageItem(item) => {
+                        self.imports_info.internal_imports.get(item).unwrap()
+                    }
+                    PathfindingNode::ExternalItem(_) => &empty_package_items,
+                };
+
+                let external_items = match item {
+                    PathfindingNode::Initial => &empty_external_items,
+                    PathfindingNode::PackageItem(item) => {
+                        self.imports_info.external_imports.get(item).unwrap()
+                    }
+                    PathfindingNode::ExternalItem(_) => &empty_external_items,
+                };
+
+                let internal_items = internal_items
+                    .difference(&query.excluding_paths_via)
+                    .map(PathfindingNode::PackageItem);
+
+                let external_items = external_items.iter().map(PathfindingNode::ExternalItem);
+
+                internal_items.chain(external_items)
+            },
+            // Success
+            |item| match item {
+                PathfindingNode::Initial => false,
+                PathfindingNode::PackageItem(_) => false,
+                PathfindingNode::ExternalItem(pypath) => query.to.contains(pypath),
+            },
+        );
+
+        if path.is_none() {
+            return Ok(None);
+        }
+
+        let mut path = path.unwrap();
+        let external_item = path.pop().unwrap().unwrap_external_item().clone();
+
+        let path = path
+            .into_iter()
+            .skip(1)
+            .map(|item| match item {
+                PathfindingNode::PackageItem(item) => item,
+                _ => panic!(),
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+
+        Ok(Some((path, external_item)))
+    }
+
+    /// Returns true if an import path exists.
+    pub fn path_exists(&'a self, query: &ExternalImportsPathQuery) -> Result<bool> {
+        Ok(self.find_path(query)?.is_some())
+    }
+
     #[allow(dead_code)]
     fn get_equal_to_or_descendant_imports(&self, pypath: &Pypath) -> HashSet<Pypath> {
         self.imports_info
@@ -433,6 +584,81 @@ mod tests {
                 "django.http.HttpResponse".parse()?,
                 "django.shortcuts.render".parse()?,
             }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_find_path() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "",
+            "a.py" => "from testpackage import b",
+            "b.py" => "from testpackage import c",
+            "c.py" => "from django.db import models"
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let a = imports_info._item("testpackage.a");
+        let b = imports_info._item("testpackage.b");
+        let c = imports_info._item("testpackage.c");
+
+        assert_eq!(
+            imports_info.external_imports().find_path(
+                &ExternalImportsPathQueryBuilder::default()
+                    .from(a)
+                    .to(&"django.db.models".parse()?)
+                    .build()?
+            )?,
+            Some((vec![a, b, c], "django.db.models".parse()?))
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_find_path_excluding_via() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "",
+            "a.py" => "from testpackage import b, e",
+            "b.py" => "from testpackage import c",
+            "c.py" => "from django.db import models",
+            "d.py" => "from testpackage import c",
+            "e.py" => "from testpackage import d"
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let a = imports_info._item("testpackage.a");
+        let b = imports_info._item("testpackage.b");
+        let c = imports_info._item("testpackage.c");
+        let d = imports_info._item("testpackage.d");
+        let e = imports_info._item("testpackage.e");
+
+        // Sanity check
+        assert_eq!(
+            imports_info.external_imports().find_path(
+                &ExternalImportsPathQueryBuilder::default()
+                    .from(a)
+                    .to(&"django.db.models".parse()?)
+                    .build()?
+            )?,
+            Some((vec![a, b, c], "django.db.models".parse()?))
+        );
+
+        // Excluding b we need to go via the longer path
+        assert_eq!(
+            imports_info.external_imports().find_path(
+                &ExternalImportsPathQueryBuilder::default()
+                    .from(a)
+                    .to(&"django.db.models".parse()?)
+                    .excluding_paths_via(b)
+                    .build()?
+            )?,
+            Some((vec![a, e, d, c], "django.db.models".parse()?))
         );
 
         Ok(())

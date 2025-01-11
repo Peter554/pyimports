@@ -5,6 +5,7 @@ use crate::imports_info::{ImportMetadata, ImportsInfo};
 use crate::package_info::PackageItemToken;
 use anyhow::Result;
 use derive_builder::Builder;
+use derive_more::{IsVariant, Unwrap};
 use derive_new::new;
 use getset::Getters;
 use pathfinding::prelude::{bfs, bfs_reach};
@@ -97,7 +98,7 @@ pub struct InternalImportsPathQuery {
     excluding_paths_via: HashSet<PackageItemToken>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, IsVariant, Unwrap)]
 enum PathfindingNode<'a> {
     Initial,
     PackageItem(&'a PackageItemToken),
@@ -484,8 +485,7 @@ impl<'a> InternalImportsQueries<'a> {
         }
     }
 
-    /// Returns the shortest import path between the passed package items,
-    /// or `None` if no path can be found.
+    /// Returns the shortest import path or `None` if no path can be found.
     ///
     /// ```
     /// # use std::collections::HashSet;
@@ -547,6 +547,7 @@ impl<'a> InternalImportsQueries<'a> {
 
         let path = bfs(
             &PathfindingNode::Initial,
+            // Successors
             |item| {
                 let items = match item {
                     PathfindingNode::Initial => &query.from,
@@ -559,6 +560,7 @@ impl<'a> InternalImportsQueries<'a> {
                     .difference(&query.excluding_paths_via)
                     .map(PathfindingNode::PackageItem)
             },
+            // Success
             |item| match item {
                 PathfindingNode::Initial => false,
                 PathfindingNode::PackageItem(item) => query.to.contains(item),
@@ -579,7 +581,7 @@ impl<'a> InternalImportsQueries<'a> {
         Ok(path)
     }
 
-    /// Returns true if an import path exists between the passed package items.
+    /// Returns true if an import path exists.
     ///
     /// ```
     /// # use std::collections::HashSet;
