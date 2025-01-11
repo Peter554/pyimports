@@ -16,6 +16,69 @@ pub struct ExternalImportsQueries<'a> {
 }
 
 impl<'a> ExternalImportsQueries<'a> {
+    /// Returns all imported external pypaths that are equal to or a descendant of the passed pypath,
+    /// across the entire package.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage, testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::ImportsInfo;
+    ///
+    /// # fn main() -> Result<()> {
+    /// let testpackage = testpackage! {
+    ///     "__init__.py" => "",
+    ///     "a.py" => "from django.db import models",
+    ///     "b.py" => "from django.http import HttpResponse",
+    ///     "c.py" => "from django.shortcuts import render"
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(testpackage.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// assert_eq!(
+    ///     imports_info.external_imports().get_equal_to_or_descendant_imports(&"django.db.models".parse()?),
+    ///     hashset!{
+    ///         "django.db.models".parse()?,
+    ///     }
+    /// );
+    ///
+    /// assert_eq!(
+    ///     imports_info.external_imports().get_equal_to_or_descendant_imports(&"django.db".parse()?),
+    ///     hashset!{
+    ///         "django.db.models".parse()?,
+    ///     }
+    /// );
+    ///
+    /// assert_eq!(
+    ///     imports_info.external_imports().get_equal_to_or_descendant_imports(&"django".parse()?),
+    ///     hashset!{
+    ///         "django.db.models".parse()?,
+    ///         "django.http.HttpResponse".parse()?,
+    ///         "django.shortcuts.render".parse()?,
+    ///     }
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_equal_to_or_descendant_imports(&self, pypath: &Pypath) -> HashSet<Pypath> {
+        self.imports_info
+            .external_imports
+            .iter()
+            .flat_map(|(_, external_imports)| {
+                external_imports.iter().filter_map(|imported_pypath| {
+                    if imported_pypath.is_equal_to_or_descendant_of(pypath) {
+                        Some(imported_pypath.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect()
+    }
+
     /// Returns a map of all the direct imports.
     ///
     /// ```
@@ -157,6 +220,70 @@ impl<'a> ExternalImportsQueries<'a> {
             .get(&item)
             .unwrap()
             .clone())
+    }
+
+    /// Returns the downstream external imports.
+    /// This is determined by finding the downstream internal imports and then returning the union
+    /// of the external imports from all of these internal items.
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # use maplit::{hashmap, hashset};
+    /// # use pyimports::{testpackage, testutils::TestPackage};
+    /// use pyimports::package_info::PackageInfo;
+    /// use pyimports::imports_info::ImportsInfo;
+    ///
+    /// # fn main() -> Result<()> {
+    /// let testpackage = testpackage! {
+    ///     "__init__.py" => "",
+    ///     "a.py" => "from django.db import models; from testpackage import b",
+    ///     "b.py" => "import pydantic; from testpackage import c",
+    ///     "c.py" => "import numpy as np"
+    /// };
+    ///
+    /// let package_info = PackageInfo::build(testpackage.path())?;
+    /// let imports_info = ImportsInfo::build(package_info)?;
+    ///
+    /// let a = imports_info.package_info()
+    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .token();
+    ///
+    /// assert_eq!(
+    ///     imports_info.external_imports().get_downstream_items(a)?,
+    ///     hashset!{
+    ///         "django.db.models".parse()?,
+    ///         "pydantic".parse()?,
+    ///         "numpy".parse()?,
+    ///     }
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_downstream_items<T: Into<HashSet<PackageItemToken>>>(
+        &'a self,
+        items: T,
+    ) -> Result<HashSet<Pypath>> {
+        let mut items = items.into();
+
+        items.extend(
+            self.imports_info
+                .internal_imports()
+                .get_downstream_items(items.clone())?,
+        );
+
+        let external_imports = items
+            .into_iter()
+            .flat_map(|item| {
+                self.imports_info
+                    .external_imports
+                    .get(&item)
+                    .unwrap()
+                    .clone()
+            })
+            .collect();
+
+        Ok(external_imports)
     }
 
     /// Returns the metadata associated with the passed import.
