@@ -98,9 +98,9 @@ pub struct InternalImportsPathQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum PathfindingNode {
+enum PathfindingNode<'a> {
     Initial,
-    PackageItem(PackageItemToken),
+    PackageItem(&'a PackageItemToken),
 }
 
 impl<'a> InternalImportsQueries<'a> {
@@ -415,15 +415,16 @@ impl<'a> InternalImportsQueries<'a> {
 
         let reachable_items = bfs_reach(PathfindingNode::Initial, |item| {
             let items = match item {
-                PathfindingNode::Initial => items.clone(),
-                PathfindingNode::PackageItem(item) => imports_map.get(item).unwrap().clone(),
+                PathfindingNode::Initial => &items,
+                PathfindingNode::PackageItem(item) => imports_map.get(item).unwrap(),
             };
-            items.into_iter().map(PathfindingNode::PackageItem)
+            items.iter().map(PathfindingNode::PackageItem)
         })
         .filter_map(|item| match item {
             PathfindingNode::Initial => None,
             PathfindingNode::PackageItem(item) => Some(item),
         })
+        .cloned()
         .collect::<HashSet<_>>();
 
         let reachable_items = &reachable_items - &items;
@@ -548,16 +549,15 @@ impl<'a> InternalImportsQueries<'a> {
             &PathfindingNode::Initial,
             |item| {
                 let items = match item {
-                    PathfindingNode::Initial => query.from.clone(),
-                    PathfindingNode::PackageItem(item) => self
-                        .imports_info
-                        .internal_imports
-                        .get(item)
-                        .unwrap()
-                        .clone(),
+                    PathfindingNode::Initial => &query.from,
+                    PathfindingNode::PackageItem(item) => {
+                        self.imports_info.internal_imports.get(item).unwrap()
+                    }
                 };
-                let items = &items - &query.excluding_paths_via;
-                items.into_iter().map(PathfindingNode::PackageItem)
+
+                items
+                    .difference(&query.excluding_paths_via)
+                    .map(PathfindingNode::PackageItem)
             },
             |item| match item {
                 PathfindingNode::Initial => false,
@@ -572,6 +572,7 @@ impl<'a> InternalImportsQueries<'a> {
                     PathfindingNode::PackageItem(item) => item,
                     PathfindingNode::Initial => panic!(),
                 })
+                .cloned()
                 .collect()
         });
 
