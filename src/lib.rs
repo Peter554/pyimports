@@ -24,5 +24,4 @@ pub mod testutils;
 pub mod prelude {
     pub use crate::package_info::ExtendWithDescendants;
     pub use crate::package_info::PackageItemIterator;
-    pub use crate::pypath::IntoPypath;
 }

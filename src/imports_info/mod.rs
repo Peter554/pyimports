@@ -54,13 +54,13 @@ pub enum ImportMetadata {
 /// let imports_info = ImportsInfo::build(package_info)?;
 ///
 /// let root_pkg = imports_info.package_info()
-///     .get_item_by_pypath("testpackage")?.unwrap()
+///     .get_item_by_pypath(&"testpackage".parse()?).unwrap()
 ///     .token();
 /// let root_init = imports_info.package_info()
-///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
 ///     .token();
 /// let a = imports_info.package_info()
-///     .get_item_by_pypath("testpackage.a")?.unwrap()
+///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
 ///     .token();
 ///
 /// assert_eq!(
@@ -182,13 +182,13 @@ impl ImportsInfo {
                 if raw_import.pypath.is_internal(&package_info) {
                     let internal_item = {
                         if let Some(item) = package_info
-                            .get_item_by_pypath(&raw_import.pypath)?
+                            .get_item_by_pypath(&raw_import.pypath)
                             .map(|item| item.token())
                         {
                             // An imported module.
                             item
                         } else if let Some(item) = package_info
-                            .get_item_by_pypath(raw_import.pypath.parent())?
+                            .get_item_by_pypath(&raw_import.pypath.parent())
                             .map(|item| item.token())
                         {
                             // An imported module member.

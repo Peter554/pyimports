@@ -1,6 +1,5 @@
 //! The `pypath` module provides utilities for working with dotted python import paths.
 
-use std::borrow::Borrow;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -154,51 +153,6 @@ impl Pypath {
     /// ```
     pub fn is_external(&self, package_info: &PackageInfo) -> bool {
         !self.is_internal(package_info)
-    }
-}
-
-/// [`IntoPypath`] is a trait that can be used as a bound to generic functions that want
-/// to accept a [`Pypath`], `&Pypath` or a `&str`.
-///
-/// ```
-/// # use anyhow::Result;
-/// use std::borrow::Borrow;
-///
-/// use pyimports::prelude::*;
-/// use pyimports::pypath::Pypath;
-///
-/// fn f<T: IntoPypath>(pypath: T) -> Result<()> {
-///     let pypath = pypath.into_pypath()?;
-///     let pypath: &Pypath = pypath.borrow();
-///     print!("{}", pypath);
-///     Ok(())
-/// }
-///
-/// # fn main() -> Result<()> {
-/// // `f` can accept a Pypath
-/// f("foo.bar".parse::<Pypath>()?)?;
-/// // ...or a &Pypath
-/// f(&"foo.bar".parse::<Pypath>()?)?;
-/// // ...or a &str
-/// f("foo.bar")?;
-/// # Ok(())
-/// # }
-/// ```
-pub trait IntoPypath {
-    /// Convert into a [`Pypath`].
-    fn into_pypath(self) -> Result<impl Borrow<Pypath>>;
-}
-
-impl<B: Borrow<Pypath>> IntoPypath for B {
-    fn into_pypath(self) -> Result<impl Borrow<Pypath>> {
-        Ok(self)
-    }
-}
-
-impl IntoPypath for &str {
-    fn into_pypath(self) -> Result<impl Borrow<Pypath>> {
-        let pypath = self.parse::<Pypath>()?;
-        Ok(pypath)
     }
 }
 

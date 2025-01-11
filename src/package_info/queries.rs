@@ -2,9 +2,8 @@ use crate::errors::Error;
 use crate::package_info::{
     Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
 };
-use crate::prelude::*;
+use crate::pypath::Pypath;
 use anyhow::Result;
-use std::borrow::Borrow;
 use std::path::Path;
 
 /// An iterator over package items.
@@ -96,20 +95,18 @@ impl PackageInfo {
     ///
     /// let package_info = PackageInfo::build(&testpackage.path())?;
     ///
-    /// let foo = package_info.get_item_by_pypath("testpackage.foo")?;
+    /// let foo = package_info.get_item_by_pypath(&"testpackage.foo".parse()?);
     /// assert!(foo.is_some());
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_item_by_pypath<T: IntoPypath>(&self, pypath: T) -> Result<Option<PackageItem>> {
-        let pypath = pypath.into_pypath()?;
-        if let Some(package) = self.packages_by_pypath.get(pypath.borrow()) {
-            Ok(Some(self.get_package(*package).unwrap().into()))
+    pub fn get_item_by_pypath(&self, pypath: &Pypath) -> Option<PackageItem> {
+        if let Some(package) = self.packages_by_pypath.get(pypath) {
+            Some(self.get_package(*package).unwrap().into())
         } else {
-            Ok(self
-                .modules_by_pypath
-                .get(pypath.borrow())
-                .map(|module| self.get_module(*module).unwrap().into()))
+            self.modules_by_pypath
+                .get(pypath)
+                .map(|module| self.get_module(*module).unwrap().into())
         }
     }
 
@@ -278,10 +275,10 @@ mod tests {
 
         let root_package = package_info.get_root();
         let colors_package = package_info
-            .get_item_by_pypath("testpackage.colors")?
+            .get_item_by_pypath(&"testpackage.colors".parse()?)
             .unwrap();
         let main = package_info
-            .get_item_by_pypath("testpackage.main")?
+            .get_item_by_pypath(&"testpackage.main".parse()?)
             .unwrap();
 
         assert_eq!(

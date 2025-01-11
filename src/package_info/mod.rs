@@ -193,8 +193,8 @@ pub struct PackageInfo {
 ///
 /// let package_info = PackageInfo::build(testpackage.path())?;
 ///
-/// let root_pkg: PackageItem = package_info.get_item_by_pypath("testpackage")?.unwrap();
-/// let root_init: PackageItem = package_info.get_item_by_pypath("testpackage.__init__")?.unwrap();
+/// let root_pkg: PackageItem = package_info.get_item_by_pypath(&"testpackage".parse()?).unwrap();
+/// let root_init: PackageItem = package_info.get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap();
 ///
 /// let root_pkg: &Package = root_pkg.try_into()?;
 /// let root_init: &Module = root_init.try_into()?;
@@ -237,10 +237,10 @@ impl fmt::Display for PackageItem<'_> {
 /// let package_info = PackageInfo::build(testpackage.path())?;
 ///
 /// let root_pkg: PackageItemToken = package_info
-///     .get_item_by_pypath("testpackage")?.unwrap()
+///     .get_item_by_pypath(&"testpackage".parse()?).unwrap()
 ///     .token();
 /// let root_init: PackageItemToken = package_info
-///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
 ///     .token();
 ///
 /// let root_pkg: PackageToken = root_pkg.try_into()?;
@@ -455,10 +455,10 @@ impl From<PackageItemToken> for HashSet<PackageItemToken> {
 ///
 /// let package_info = PackageInfo::build(testpackage.path())?;
 ///
-/// let root = package_info.get_item_by_pypath("testpackage")?.unwrap().token();
-/// let a = package_info.get_item_by_pypath("testpackage.a")?.unwrap().token();
-/// let b = package_info.get_item_by_pypath("testpackage.b")?.unwrap().token();
-/// let c = package_info.get_item_by_pypath("testpackage.b.c")?.unwrap().token();
+/// let root = package_info.get_item_by_pypath(&"testpackage".parse()?).unwrap().token();
+/// let a = package_info.get_item_by_pypath(&"testpackage.a".parse()?).unwrap().token();
+/// let b = package_info.get_item_by_pypath(&"testpackage.b".parse()?).unwrap().token();
+/// let c = package_info.get_item_by_pypath(&"testpackage.b.c".parse()?).unwrap().token();
 ///
 /// let package_item_tokens = hashset! {root};
 /// assert_eq!(

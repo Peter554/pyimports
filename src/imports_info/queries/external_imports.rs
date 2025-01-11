@@ -1,12 +1,8 @@
-use std::{
-    borrow::Borrow,
-    collections::{HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::errors::Error;
 use crate::imports_info::{ImportMetadata, ImportsInfo};
 use crate::package_info::PackageItemToken;
-use crate::prelude::*;
 use crate::pypath::Pypath;
 use anyhow::Result;
 
@@ -36,13 +32,13 @@ impl<'a> ExternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_pkg = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage".parse()?).unwrap()
     ///     .token();
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -80,28 +76,22 @@ impl<'a> ExternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     ///
     /// assert!(
-    ///     imports_info.external_imports().direct_import_exists(a, "django.db.models")?,
+    ///     imports_info.external_imports().direct_import_exists(a, &"django.db.models".parse()?)?,
     /// );
     /// assert!(
-    ///     !imports_info.external_imports().direct_import_exists(root_init, "django.db.models")?,
+    ///     !imports_info.external_imports().direct_import_exists(root_init, &"django.db.models".parse()?)?,
     /// );
     /// # Ok(())
     /// # }
     /// ```
-    pub fn direct_import_exists<T: IntoPypath>(
-        &self,
-        from: PackageItemToken,
-        to: T,
-    ) -> Result<bool> {
-        let to = to.into_pypath()?;
-
+    pub fn direct_import_exists(&self, from: PackageItemToken, to: &Pypath) -> Result<bool> {
         self.imports_info.package_info.get_item(from)?;
 
         Ok(self
@@ -109,7 +99,7 @@ impl<'a> ExternalImportsQueries<'a> {
             .external_imports
             .get(&from)
             .unwrap()
-            .contains(to.borrow()))
+            .contains(to))
     }
 
     /// Returns the items directly imported by the passed package item.
@@ -132,7 +122,7 @@ impl<'a> ExternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -183,7 +173,7 @@ impl<'a> ExternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -243,11 +233,11 @@ impl<'a> ExternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
-    ///     imports_info.external_imports().get_import_metadata(a, "django.db.models")?,
+    ///     imports_info.external_imports().get_import_metadata(a, &"django.db.models".parse()?)?,
     ///     &ImportMetadata::ExplicitImport {
     ///         line_number: 1,
     ///         is_typechecking: false
@@ -256,23 +246,23 @@ impl<'a> ExternalImportsQueries<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_import_metadata<T: IntoPypath>(
+    pub fn get_import_metadata(
         &'a self,
         from: PackageItemToken,
-        to: T,
+        to: &Pypath,
     ) -> Result<&'a ImportMetadata> {
-        let to = to.into_pypath()?;
-        if self.direct_import_exists(from, to.borrow())? {
+        if self.direct_import_exists(from, to)? {
             Ok(self
                 .imports_info
                 .external_imports_metadata
-                .get(&(from, to.borrow().clone()))
+                .get(&(from, to.clone()))
                 .unwrap())
         } else {
             Err(Error::NoSuchImport)?
         }
     }
 
+    #[allow(dead_code)]
     fn get_equal_to_or_descendant_imports(&self, pypath: &Pypath) -> HashSet<Pypath> {
         self.imports_info
             .external_imports
@@ -362,7 +352,7 @@ mod tests {
 
         let a = imports_info
             .package_info()
-            .get_item_by_pypath("testpackage.a")?
+            .get_item_by_pypath(&"testpackage.a".parse()?)
             .unwrap()
             .token();
 
@@ -390,7 +380,8 @@ mod tests {
         let root_package_init = imports_info._item("testpackage.__init__");
 
         let external_imports = imports_info.external_imports();
-        let metadata = external_imports.get_import_metadata(root_package_init, "pydantic")?;
+        let metadata =
+            external_imports.get_import_metadata(root_package_init, &"pydantic".parse()?)?;
 
         assert_eq!(
             metadata,

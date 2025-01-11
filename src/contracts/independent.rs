@@ -23,8 +23,8 @@
 //! let package_info = PackageInfo::build(testpackage.path())?;
 //! let imports_info = ImportsInfo::build(package_info)?;
 //!
-//! let a = imports_info.package_info().get_item_by_pypath("testpackage.a")?.unwrap().token();
-//! let b = imports_info.package_info().get_item_by_pypath("testpackage.b")?.unwrap().token();
+//! let a = imports_info.package_info().get_item_by_pypath(&"testpackage.a".parse()?).unwrap().token();
+//! let b = imports_info.package_info().get_item_by_pypath(&"testpackage.b".parse()?).unwrap().token();
 //!
 //! let contract = IndependentItemsContract::new(&[a, b]);
 //!
@@ -59,10 +59,10 @@
 //! let package_info = PackageInfo::build(testpackage.path())?;
 //! let imports_info = ImportsInfo::build(package_info)?;
 //!
-//! let a = imports_info.package_info().get_item_by_pypath("testpackage.a")?.unwrap().token();
-//! let b = imports_info.package_info().get_item_by_pypath("testpackage.b")?.unwrap().token();
-//! let c = imports_info.package_info().get_item_by_pypath("testpackage.c")?.unwrap().token();
-//! let d = imports_info.package_info().get_item_by_pypath("testpackage.d")?.unwrap().token();
+//! let a = imports_info.package_info().get_item_by_pypath(&"testpackage.a".parse()?).unwrap().token();
+//! let b = imports_info.package_info().get_item_by_pypath(&"testpackage.b".parse()?).unwrap().token();
+//! let c = imports_info.package_info().get_item_by_pypath(&"testpackage.c".parse()?).unwrap().token();
+//! let d = imports_info.package_info().get_item_by_pypath(&"testpackage.d".parse()?).unwrap().token();
 //!
 //! let contract = IndependentItemsContract::new(&[a, b]);
 //!

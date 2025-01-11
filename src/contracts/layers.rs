@@ -30,10 +30,10 @@
 //! let package_info = PackageInfo::build(testpackage.path())?;
 //! let imports_info = ImportsInfo::build(package_info)?;
 //!
-//! let data = imports_info.package_info().get_item_by_pypath("testpackage.data")?.unwrap().token();
-//! let domain = imports_info.package_info().get_item_by_pypath("testpackage.domain")?.unwrap().token();
-//! let application = imports_info.package_info().get_item_by_pypath("testpackage.application")?.unwrap().token();
-//! let interfaces = imports_info.package_info().get_item_by_pypath("testpackage.interfaces")?.unwrap().token();
+//! let data = imports_info.package_info().get_item_by_pypath(&"testpackage.data".parse()?).unwrap().token();
+//! let domain = imports_info.package_info().get_item_by_pypath(&"testpackage.domain".parse()?).unwrap().token();
+//! let application = imports_info.package_info().get_item_by_pypath(&"testpackage.application".parse()?).unwrap().token();
+//! let interfaces = imports_info.package_info().get_item_by_pypath(&"testpackage.interfaces".parse()?).unwrap().token();
 //!
 //! let contract = LayeredArchitectureContract::new(&[
 //!     Layer::new([data], true),
@@ -75,10 +75,10 @@
 //! let package_info = PackageInfo::build(testpackage.path())?;
 //! let imports_info = ImportsInfo::build(package_info)?;
 //!
-//! let data = imports_info.package_info().get_item_by_pypath("testpackage.data")?.unwrap().token();
-//! let domain = imports_info.package_info().get_item_by_pypath("testpackage.domain")?.unwrap().token();
-//! let application = imports_info.package_info().get_item_by_pypath("testpackage.application")?.unwrap().token();
-//! let interfaces = imports_info.package_info().get_item_by_pypath("testpackage.interfaces")?.unwrap().token();
+//! let data = imports_info.package_info().get_item_by_pypath(&"testpackage.data".parse()?).unwrap().token();
+//! let domain = imports_info.package_info().get_item_by_pypath(&"testpackage.domain".parse()?).unwrap().token();
+//! let application = imports_info.package_info().get_item_by_pypath(&"testpackage.application".parse()?).unwrap().token();
+//! let interfaces = imports_info.package_info().get_item_by_pypath(&"testpackage.interfaces".parse()?).unwrap().token();
 //!
 //! let contract = LayeredArchitectureContract::new(&[
 //!     Layer::new([data], true),

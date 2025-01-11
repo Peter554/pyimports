@@ -51,19 +51,19 @@ pub struct InternalImportsPathQuery {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     /// let b = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.b".parse()?).unwrap()
     ///     .token();
     /// let c = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.c".parse()?).unwrap()
     ///     .token();
     /// let d = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.d")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.d".parse()?).unwrap()
     ///     .token();
     /// let e = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.e")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.e".parse()?).unwrap()
     ///     .token();
     ///
     /// // Sanity check: The shortest path goes via `b`.
@@ -124,13 +124,13 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_pkg = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage".parse()?).unwrap()
     ///     .token();
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -168,10 +168,10 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     ///
     /// assert!(
@@ -221,13 +221,13 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     /// let b = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.b".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -273,13 +273,13 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     /// let b = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.b".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -325,16 +325,16 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     /// let b = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.b".parse()?).unwrap()
     ///     .token();
     /// let c = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.c".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -373,19 +373,19 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_pkg = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage".parse()?).unwrap()
     ///     .token();
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     /// let b = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.b".parse()?).unwrap()
     ///     .token();
     /// let c = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.c".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -452,10 +452,10 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -507,16 +507,16 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     /// let b = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.b".parse()?).unwrap()
     ///     .token();
     /// let c = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.c".parse()?).unwrap()
     ///     .token();
     ///
     /// assert_eq!(
@@ -601,16 +601,16 @@ impl<'a> InternalImportsQueries<'a> {
     /// let imports_info = ImportsInfo::build(package_info)?;
     ///
     /// let root_init = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.__init__")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
     ///     .token();
     /// let a = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.a")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.a".parse()?).unwrap()
     ///     .token();
     /// let b = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.b")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.b".parse()?).unwrap()
     ///     .token();
     /// let c = imports_info.package_info()
-    ///     .get_item_by_pypath("testpackage.c")?.unwrap()
+    ///     .get_item_by_pypath(&"testpackage.c".parse()?).unwrap()
     ///     .token();
     ///
     /// assert!(

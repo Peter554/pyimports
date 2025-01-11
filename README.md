@@ -35,7 +35,7 @@ fn main() -> Result<()> {
     let imports_info = ImportsInfo::build(package_info)?;
 
     let item = |pypath: &str| -> Result<PackageItemToken> {
-        Ok(imports_info.package_info().get_item_by_pypath(pypath)?.unwrap().token())
+        Ok(imports_info.package_info().get_item_by_pypath(&pypath.parse()?).unwrap().token())
     };
 
     let root_pkg = item("testpackage")?;
