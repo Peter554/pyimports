@@ -1,4 +1,4 @@
-//! The `independent` module provides a [`IndependentItemsContract`], which ensures that all items are independent.
+//! The `forbidden_internal` module provides a [`ForbiddenInternalImportContract`], which forbids a certain internal import.
 //!
 //! # Example: Contract kept
 //!
@@ -9,15 +9,14 @@
 //! use pyimports::package_info::PackageInfo;
 //! use pyimports::imports_info::ImportsInfo;
 //! use pyimports::contracts::ImportsContract;
-//! use pyimports::contracts::independent::IndependentItemsContract;
+//! use pyimports::contracts::forbidden_internal::ForbiddenInternalImportContract;
 //!
 //! # fn main() -> Result<()> {
 //! let testpackage = testpackage! {
 //!     "__init__.py" => "",
 //!     "a.py" => "import testpackage.c",
-//!     "b.py" => "import testpackage.d",
-//!     "c.py" => "",
-//!     "d.py" => ""
+//!     "b.py" => "",
+//!     "c.py" => ""
 //! };
 //!
 //! let package_info = PackageInfo::build(testpackage.path())?;
@@ -26,7 +25,7 @@
 //! let a = imports_info.package_info().get_item_by_pypath(&"testpackage.a".parse()?).unwrap().token();
 //! let b = imports_info.package_info().get_item_by_pypath(&"testpackage.b".parse()?).unwrap().token();
 //!
-//! let contract = IndependentItemsContract::new(&[a, b]);
+//! let contract = ForbiddenInternalImportContract::new(a, b);
 //!
 //! let result = contract.verify(&imports_info)?;
 //! assert!(result.is_kept());
@@ -45,15 +44,14 @@
 //! use pyimports::package_info::PackageInfo;
 //! use pyimports::imports_info::ImportsInfo;
 //! use pyimports::contracts::{ImportsContract,ContractViolation,ForbiddenInternalImport};
-//! use pyimports::contracts::independent::IndependentItemsContract;
+//! use pyimports::contracts::forbidden_internal::ForbiddenInternalImportContract;
 //!
 //! # fn main() -> Result<()> {
 //! let testpackage = testpackage! {
 //!     "__init__.py" => "",
 //!     "a.py" => "import testpackage.c",
-//!     "b.py" => "import testpackage.d",
-//!     "c.py" => "import testpackage.b",
-//!     "d.py" => "import testpackage.a"
+//!     "b.py" => "",
+//!     "c.py" => "import testpackage.b"
 //! };
 //!
 //! let package_info = PackageInfo::build(testpackage.path())?;
@@ -62,22 +60,15 @@
 //! let a = imports_info.package_info().get_item_by_pypath(&"testpackage.a".parse()?).unwrap().token();
 //! let b = imports_info.package_info().get_item_by_pypath(&"testpackage.b".parse()?).unwrap().token();
 //! let c = imports_info.package_info().get_item_by_pypath(&"testpackage.c".parse()?).unwrap().token();
-//! let d = imports_info.package_info().get_item_by_pypath(&"testpackage.d".parse()?).unwrap().token();
 //!
-//! let contract = IndependentItemsContract::new(&[a, b]);
+//! let contract = ForbiddenInternalImportContract::new(a, b);
 //!
 //! let result = contract.verify(&imports_info)?;
 //! assert!(result.is_violated());
-//! let expected_violations = [
-//!     ContractViolation::ForbiddenInternalImport {
-//!         forbidden_import: ForbiddenInternalImport::new(a, b, hashset! {}),
-//!         path: vec![a, c, b],
-//!     },
-//!     ContractViolation::ForbiddenInternalImport {
-//!         forbidden_import: ForbiddenInternalImport::new(b, a, hashset! {}),
-//!         path: vec![b, d, a],
-//!     },
-//! ];
+//! let expected_violations = [ContractViolation::ForbiddenInternalImport {
+//!     forbidden_import: ForbiddenInternalImport::new(a, b, hashset! {}),
+//!     path: vec![a, c, b],
+//! }];
 //! let violations = result.unwrap_violated();
 //! assert_eq!(violations.len(), expected_violations.len());
 //! for violation in violations.iter() {
@@ -92,27 +83,37 @@ use crate::contracts::{ContractVerificationResult, ForbiddenInternalImport, Impo
 use crate::imports_info::ImportsInfo;
 use crate::package_info::PackageItemToken;
 use anyhow::Result;
-use itertools::Itertools;
 use maplit::hashset;
 use std::collections::HashSet;
 
-/// A contract which ensures that all items are independent.
+/// A contract which forbids a certain internal import.
 /// See the [module-level documentation](./index.html) for more details.
 #[derive(Debug, Clone)]
-pub struct IndependentItemsContract {
-    items: HashSet<PackageItemToken>,
+pub struct ForbiddenInternalImportContract {
+    from: PackageItemToken,
+    to: PackageItemToken,
+    except_via: HashSet<PackageItemToken>,
     ignored_imports: Vec<(PackageItemToken, PackageItemToken)>,
     ignore_typechecking_imports: bool,
 }
 
-impl IndependentItemsContract {
-    /// Create a new [`IndependentItemsContract`].
-    pub fn new(items: &[PackageItemToken]) -> Self {
-        IndependentItemsContract {
-            items: items.iter().cloned().collect(),
+impl ForbiddenInternalImportContract {
+    /// Create a new [`ForbiddenInternalImportContract`].
+    pub fn new(from: PackageItemToken, to: PackageItemToken) -> Self {
+        ForbiddenInternalImportContract {
+            from,
+            to,
+            except_via: hashset! {},
             ignored_imports: vec![],
             ignore_typechecking_imports: false,
         }
+    }
+
+    /// Adds items by which the import path is allowed.
+    pub fn with_except_via<T: Into<HashSet<PackageItemToken>>>(mut self, except_via: T) -> Self {
+        let except_via = except_via.into();
+        self.except_via = except_via;
+        self
     }
 
     /// Ignore the passed imports when verifying the contract.
@@ -131,7 +132,7 @@ impl IndependentItemsContract {
     }
 }
 
-impl ImportsContract for IndependentItemsContract {
+impl ImportsContract for ForbiddenInternalImportContract {
     fn verify(&self, imports_info: &ImportsInfo) -> Result<ContractVerificationResult> {
         let imports_info = ignore_imports(
             imports_info,
@@ -140,14 +141,11 @@ impl ImportsContract for IndependentItemsContract {
             self.ignore_typechecking_imports,
         )?;
 
-        let forbidden_imports = self
-            .items
-            .iter()
-            .permutations(2)
-            .map(|permutation| {
-                ForbiddenInternalImport::new(*permutation[0], *permutation[1], hashset! {})
-            })
-            .collect::<Vec<_>>();
+        let forbidden_imports = [ForbiddenInternalImport::new(
+            self.from,
+            self.to,
+            self.except_via.clone(),
+        )];
 
         let violations = find_violations(&forbidden_imports, &imports_info)?;
 
@@ -171,13 +169,12 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_independent_items_ok() -> Result<()> {
+    fn test_forbidden_internal_ok() -> Result<()> {
         let testpackage = testpackage! {
             "__init__.py" => "",
             "a.py" => "import testpackage.c",
-            "b.py" => "import testpackage.d",
-            "c.py" => "",
-            "d.py" => ""
+            "b.py" => "",
+            "c.py" => ""
         };
 
         let package_info = PackageInfo::build(testpackage.path())?;
@@ -186,7 +183,7 @@ mod tests {
         let a = imports_info.package_info()._item("testpackage.a");
         let b = imports_info.package_info()._item("testpackage.b");
 
-        let contract = IndependentItemsContract::new(&[a, b]);
+        let contract = ForbiddenInternalImportContract::new(a, b);
 
         let result = contract.verify(&imports_info)?;
         assert!(result.is_kept());
@@ -195,13 +192,12 @@ mod tests {
     }
 
     #[test]
-    fn test_independent_items_violated() -> Result<()> {
+    fn test_forbidden_internal_violated() -> Result<()> {
         let testpackage = testpackage! {
             "__init__.py" => "",
             "a.py" => "import testpackage.c",
-            "b.py" => "import testpackage.d",
-            "c.py" => "import testpackage.b",
-            "d.py" => "import testpackage.a"
+            "b.py" => "",
+            "c.py" => "import testpackage.b"
         };
 
         let package_info = PackageInfo::build(testpackage.path())?;
@@ -210,27 +206,47 @@ mod tests {
         let a = imports_info.package_info()._item("testpackage.a");
         let b = imports_info.package_info()._item("testpackage.b");
         let c = imports_info.package_info()._item("testpackage.c");
-        let d = imports_info.package_info()._item("testpackage.d");
 
-        let contract = IndependentItemsContract::new(&[a, b]);
+        let contract = ForbiddenInternalImportContract::new(a, b);
 
         let result = contract.verify(&imports_info)?;
         assert!(result.is_violated());
-        let expected_violations = [
-            ContractViolation::ForbiddenInternalImport {
-                forbidden_import: ForbiddenInternalImport::new(a, b, hashset! {}),
-                path: vec![a, c, b],
-            },
-            ContractViolation::ForbiddenInternalImport {
-                forbidden_import: ForbiddenInternalImport::new(b, a, hashset! {}),
-                path: vec![b, d, a],
-            },
-        ];
+        let expected_violations = [ContractViolation::ForbiddenInternalImport {
+            forbidden_import: ForbiddenInternalImport::new(a, b, hashset! {}),
+            path: vec![a, c, b],
+        }];
         let violations = result.unwrap_violated();
         assert_eq!(violations.len(), expected_violations.len());
         for violation in violations.iter() {
             assert!(expected_violations.contains(violation));
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forbidden_internal_except_via() -> Result<()> {
+        let testpackage = testpackage! {
+            "__init__.py" => "",
+            "a.py" => "import testpackage.c",
+            "b.py" => "",
+            "c.py" => "import testpackage.b"
+        };
+
+        let package_info = PackageInfo::build(testpackage.path())?;
+        let imports_info = ImportsInfo::build(package_info)?;
+
+        let a = imports_info.package_info()._item("testpackage.a");
+        let b = imports_info.package_info()._item("testpackage.b");
+        let c = imports_info.package_info()._item("testpackage.c");
+
+        let contract = ForbiddenInternalImportContract::new(a, b);
+        let result = contract.verify(&imports_info)?;
+        assert!(result.is_violated());
+
+        let contract = ForbiddenInternalImportContract::new(a, b).with_except_via(c);
+        let result = contract.verify(&imports_info)?;
+        assert!(result.is_kept());
 
         Ok(())
     }

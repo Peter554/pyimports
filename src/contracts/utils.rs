@@ -2,13 +2,32 @@ use crate::contracts::{ContractViolation, ForbiddenInternalImport};
 use crate::imports_info::{ImportsInfo, InternalImportsPathQueryBuilder};
 use crate::package_info::PackageItemToken;
 use crate::prelude::*;
+use crate::pypath::Pypath;
 use anyhow::Result;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use tap::prelude::*;
 
+pub(super) fn ignore_imports(
+    imports_info: &ImportsInfo,
+    ignored_internal_imports: &[(PackageItemToken, PackageItemToken)],
+    ignored_external_imports: &[(PackageItemToken, Pypath)],
+    ignore_typechecking_imports: bool,
+) -> Result<ImportsInfo> {
+    // Assumption: It's best/reasonable to clone here and remove the ignored imports from the graph.
+    // An alternative could be to ignore the imports dynamically via a new field on `InternalImportsPathQuery`.
+    let mut imports_info = imports_info.clone();
+    imports_info.remove_imports(
+        ignored_internal_imports.to_owned(),
+        ignored_external_imports.to_owned(),
+    )?;
+    if ignore_typechecking_imports {
+        imports_info.remove_typechecking_imports()?;
+    }
+    Ok(imports_info)
+}
 pub(super) fn find_violations(
-    forbidden_imports: Vec<ForbiddenInternalImport>,
+    forbidden_imports: &[ForbiddenInternalImport],
     imports_info: &ImportsInfo,
 ) -> Result<Vec<ContractViolation>> {
     let violations = forbidden_imports
@@ -40,7 +59,7 @@ pub(super) fn find_violations(
                 )?;
                 if let Some(path) = path {
                     violations.push(ContractViolation::ForbiddenInternalImport {
-                        forbidden_import,
+                        forbidden_import: forbidden_import.clone(),
                         path,
                     })
                 };

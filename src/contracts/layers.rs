@@ -104,7 +104,7 @@
 //! # }
 //! ```
 
-use crate::contracts::utils::find_violations;
+use crate::contracts::utils::{find_violations, ignore_imports};
 use crate::contracts::{ContractVerificationResult, ForbiddenInternalImport, ImportsContract};
 use crate::imports_info::ImportsInfo;
 use crate::package_info::PackageItemToken;
@@ -162,22 +162,16 @@ impl LayeredArchitectureContract {
 
 impl ImportsContract for LayeredArchitectureContract {
     fn verify(&self, imports_info: &ImportsInfo) -> Result<ContractVerificationResult> {
-        // Assumption: It's best/reasonable to clone here and remove the ignored imports from the graph.
-        // An alternative could be to ignore the imports dynamically via a new field on `InternalImportsPathQuery`.
-        let imports_info = {
-            let mut imports_info = imports_info.clone();
-            if !self.ignored_imports.is_empty() {
-                imports_info.remove_imports(self.ignored_imports.clone(), [])?;
-            }
-            if self.ignore_typechecking_imports {
-                imports_info.remove_typechecking_imports()?;
-            }
-            imports_info
-        };
+        let imports_info = ignore_imports(
+            imports_info,
+            &self.ignored_imports,
+            &[],
+            self.ignore_typechecking_imports,
+        )?;
 
         let forbidden_imports = get_forbidden_imports(&self.layers, self.allow_deep_imports);
 
-        let violations = find_violations(forbidden_imports, &imports_info)?;
+        let violations = find_violations(&forbidden_imports, &imports_info)?;
 
         if violations.is_empty() {
             Ok(ContractVerificationResult::Kept)
