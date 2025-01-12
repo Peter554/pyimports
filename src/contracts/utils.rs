@@ -1,4 +1,4 @@
-use crate::contracts::{ContractViolation, ForbiddenImport};
+use crate::contracts::{ContractViolation, ForbiddenInternalImport};
 use crate::imports_info::{ImportsInfo, InternalImportsPathQueryBuilder};
 use crate::package_info::PackageItemToken;
 use crate::prelude::*;
@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use tap::prelude::*;
 
 pub(super) fn find_violations(
-    forbidden_imports: Vec<ForbiddenImport>,
+    forbidden_imports: Vec<ForbiddenInternalImport>,
     imports_info: &ImportsInfo,
 ) -> Result<Vec<ContractViolation>> {
     let violations = forbidden_imports
@@ -39,7 +39,7 @@ pub(super) fn find_violations(
                         .build()?,
                 )?;
                 if let Some(path) = path {
-                    violations.push(ContractViolation::ForbiddenImport {
+                    violations.push(ContractViolation::ForbiddenInternalImport {
                         forbidden_import,
                         path,
                     })

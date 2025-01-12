@@ -33,18 +33,18 @@ pub enum ContractVerificationResult {
 /// A violation of a contract.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContractViolation {
-    /// An import path which is forbidden by the contract.
-    ForbiddenImport {
+    /// An internal import which is forbidden by the contract.
+    ForbiddenInternalImport {
         /// The import which is forbidden by the contract.
-        forbidden_import: ForbiddenImport,
+        forbidden_import: ForbiddenInternalImport,
         /// The specific path for this forbidden import.
         path: Vec<PackageItemToken>,
     },
 }
 
-/// An import path which is forbidden.
+/// An internal import which is forbidden.
 #[derive(Debug, Clone, PartialEq, new, Getters, CopyGetters)]
-pub struct ForbiddenImport {
+pub struct ForbiddenInternalImport {
     /// The start of the forbidden import path.
     #[getset(get_copy = "pub")]
     from: PackageItemToken,

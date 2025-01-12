@@ -44,7 +44,7 @@
 //! # use pyimports::testutils::TestPackage;
 //! use pyimports::package_info::PackageInfo;
 //! use pyimports::imports_info::ImportsInfo;
-//! use pyimports::contracts::{ImportsContract,ContractViolation,ForbiddenImport};
+//! use pyimports::contracts::{ImportsContract,ContractViolation,ForbiddenInternalImport};
 //! use pyimports::contracts::independent::IndependentItemsContract;
 //!
 //! # fn main() -> Result<()> {
@@ -69,12 +69,12 @@
 //! let result = contract.verify(&imports_info)?;
 //! assert!(result.is_violated());
 //! let expected_violations = [
-//!     ContractViolation::ForbiddenImport {
-//!         forbidden_import: ForbiddenImport::new(a, b, hashset! {}),
+//!     ContractViolation::ForbiddenInternalImport {
+//!         forbidden_import: ForbiddenInternalImport::new(a, b, hashset! {}),
 //!         path: vec![a, c, b],
 //!     },
-//!     ContractViolation::ForbiddenImport {
-//!         forbidden_import: ForbiddenImport::new(b, a, hashset! {}),
+//!     ContractViolation::ForbiddenInternalImport {
+//!         forbidden_import: ForbiddenInternalImport::new(b, a, hashset! {}),
 //!         path: vec![b, d, a],
 //!     },
 //! ];
@@ -88,7 +88,7 @@
 //! ```
 
 use crate::contracts::utils::find_violations;
-use crate::contracts::{ContractVerificationResult, ForbiddenImport, ImportsContract};
+use crate::contracts::{ContractVerificationResult, ForbiddenInternalImport, ImportsContract};
 use crate::imports_info::ImportsInfo;
 use crate::package_info::PackageItemToken;
 use anyhow::Result;
@@ -150,7 +150,9 @@ impl ImportsContract for IndependentItemsContract {
             .items
             .iter()
             .permutations(2)
-            .map(|permutation| ForbiddenImport::new(*permutation[0], *permutation[1], hashset! {}))
+            .map(|permutation| {
+                ForbiddenInternalImport::new(*permutation[0], *permutation[1], hashset! {})
+            })
             .collect::<Vec<_>>();
 
         let violations = find_violations(forbidden_imports, &imports_info)?;
@@ -221,12 +223,12 @@ mod tests {
         let result = contract.verify(&imports_info)?;
         assert!(result.is_violated());
         let expected_violations = [
-            ContractViolation::ForbiddenImport {
-                forbidden_import: ForbiddenImport::new(a, b, hashset! {}),
+            ContractViolation::ForbiddenInternalImport {
+                forbidden_import: ForbiddenInternalImport::new(a, b, hashset! {}),
                 path: vec![a, c, b],
             },
-            ContractViolation::ForbiddenImport {
-                forbidden_import: ForbiddenImport::new(b, a, hashset! {}),
+            ContractViolation::ForbiddenInternalImport {
+                forbidden_import: ForbiddenInternalImport::new(b, a, hashset! {}),
                 path: vec![b, d, a],
             },
         ];
