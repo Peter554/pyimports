@@ -413,8 +413,7 @@ impl<'a> ExternalImportsQueries<'a> {
         Ok(self.find_path(query)?.is_some())
     }
 
-    #[allow(dead_code)]
-    fn get_equal_to_or_descendant_imports(&self, pypath: &Pypath) -> HashSet<Pypath> {
+    pub(crate) fn get_equal_to_or_descendant_imports(&self, pypath: &Pypath) -> HashSet<Pypath> {
         self.imports_info
             .external_imports
             .iter()
