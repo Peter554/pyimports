@@ -104,7 +104,7 @@
 //! # }
 //! ```
 
-use crate::contracts::utils::{find_violations, ignore_imports};
+use crate::contracts::utils::{find_internal_import_violations, ignore_imports};
 use crate::contracts::{ContractVerificationResult, ForbiddenInternalImport, ImportsContract};
 use crate::imports_info::ImportsInfo;
 use crate::package_info::PackageItemToken;
@@ -171,7 +171,7 @@ impl ImportsContract for LayeredArchitectureContract {
 
         let forbidden_imports = get_forbidden_imports(&self.layers, self.allow_deep_imports);
 
-        let violations = find_violations(&forbidden_imports, &imports_info)?;
+        let violations = find_internal_import_violations(&forbidden_imports, &imports_info)?;
 
         if violations.is_empty() {
             Ok(ContractVerificationResult::Kept)

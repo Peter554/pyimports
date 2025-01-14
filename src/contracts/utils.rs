@@ -1,5 +1,7 @@
-use crate::contracts::{ContractViolation, ForbiddenInternalImport};
-use crate::imports_info::{ImportsInfo, InternalImportsPathQueryBuilder};
+use crate::contracts::{ContractViolation, ForbiddenExternalImport, ForbiddenInternalImport};
+use crate::imports_info::{
+    ExternalImportsPathQueryBuilder, ImportsInfo, InternalImportsPathQueryBuilder,
+};
 use crate::package_info::PackageItemToken;
 use crate::prelude::*;
 use crate::pypath::Pypath;
@@ -26,7 +28,7 @@ pub(super) fn ignore_imports(
     }
     Ok(imports_info)
 }
-pub(super) fn find_violations(
+pub(super) fn find_internal_import_violations(
     forbidden_imports: &[ForbiddenInternalImport],
     imports_info: &ImportsInfo,
 ) -> Result<Vec<ContractViolation>> {
@@ -59,6 +61,56 @@ pub(super) fn find_violations(
                 )?;
                 if let Some(path) = path {
                     violations.push(ContractViolation::ForbiddenInternalImport {
+                        forbidden_import: forbidden_import.clone(),
+                        path,
+                    })
+                };
+                Ok(violations)
+            },
+        )
+        .try_reduce(
+            Vec::new,
+            |mut all_violations, violations| -> anyhow::Result<_> {
+                all_violations.extend(violations);
+                Ok(all_violations)
+            },
+        )?;
+
+    Ok(violations)
+}
+
+pub(super) fn find_external_import_violations(
+    forbidden_imports: &[ForbiddenExternalImport],
+    imports_info: &ImportsInfo,
+) -> Result<Vec<ContractViolation>> {
+    let violations = forbidden_imports
+        .into_par_iter()
+        .try_fold(
+            Vec::new,
+            |mut violations, forbidden_import| -> anyhow::Result<_> {
+                // A contract operates in "as packages" mode, meaning
+                // items are expanded to include their descendants.
+                let from = forbidden_import
+                    .from
+                    .conv::<HashSet<PackageItemToken>>()
+                    .with_descendants(imports_info.package_info());
+                let to = imports_info
+                    .external_imports()
+                    .get_equal_to_or_descendant_imports(&forbidden_import.to);
+                let except_via = forbidden_import
+                    .except_via()
+                    .clone()
+                    .with_descendants(imports_info.package_info());
+
+                let path = imports_info.external_imports().find_path(
+                    &ExternalImportsPathQueryBuilder::default()
+                        .from(from)
+                        .to(to)
+                        .excluding_paths_via(except_via)
+                        .build()?,
+                )?;
+                if let Some(path) = path {
+                    violations.push(ContractViolation::ForbiddenExternalImport {
                         forbidden_import: forbidden_import.clone(),
                         path,
                     })

@@ -2,12 +2,14 @@
 
 use crate::imports_info::ImportsInfo;
 use crate::package_info::PackageItemToken;
+use crate::pypath::Pypath;
 use anyhow::Result;
 use derive_more::{IsVariant, Unwrap};
 use derive_new::new;
 use getset::{CopyGetters, Getters};
 use std::collections::HashSet;
 
+pub mod forbidden_external;
 pub mod forbidden_internal;
 pub mod independent;
 pub mod layers;
@@ -41,6 +43,13 @@ pub enum ContractViolation {
         /// The specific path for this forbidden import.
         path: Vec<PackageItemToken>,
     },
+    /// An external import which is forbidden by the contract.
+    ForbiddenExternalImport {
+        /// The import which is forbidden by the contract.
+        forbidden_import: ForbiddenExternalImport,
+        /// The specific path for this forbidden import.
+        path: (Vec<PackageItemToken>, Pypath),
+    },
 }
 
 /// An internal import which is forbidden.
@@ -52,6 +61,24 @@ pub struct ForbiddenInternalImport {
     /// The end of the forbidden import path.
     #[getset(get_copy = "pub")]
     to: PackageItemToken,
+    /// Items by which the import path is allowed.
+    /// E.g. if imports from `pkg.a` to `pkg.b` are forbidden, except via `pkg.c` then
+    /// `pkg.a -> pkg.d -> pkg.b` would be a forbidden import path, while
+    /// `pkg.a -> pkg.c -> pkg.b` would be allowed.
+    #[new(into)]
+    #[getset(get = "pub")]
+    except_via: HashSet<PackageItemToken>,
+}
+
+/// An external import which is forbidden.
+#[derive(Debug, Clone, PartialEq, new, Getters, CopyGetters)]
+pub struct ForbiddenExternalImport {
+    /// The start of the forbidden import path.
+    #[getset(get_copy = "pub")]
+    from: PackageItemToken,
+    /// The end of the forbidden import path.
+    #[getset(get = "pub")]
+    to: Pypath,
     /// Items by which the import path is allowed.
     /// E.g. if imports from `pkg.a` to `pkg.b` are forbidden, except via `pkg.c` then
     /// `pkg.a -> pkg.d -> pkg.b` would be a forbidden import path, while
