@@ -2,6 +2,11 @@
 //! See [`ImportsInfo`].
 mod queries;
 
+#[allow(dead_code)]
+#[doc(hidden)]
+#[cfg(feature = "grimp_compare")]
+pub(crate) mod grimp_compare;
+
 use crate::errors::Error;
 pub use crate::imports_info::queries::external_imports::{
     ExternalImportsPathQuery, ExternalImportsPathQueryBuilder,
@@ -190,14 +195,18 @@ impl ImportsInfo {
                         {
                             // An imported module.
                             item
-                        } else if let Some(item) = package_info
-                            .get_item_by_pypath(&raw_import.pypath.parent())
-                            .map(|item| item.token())
-                        {
-                            // An imported module member.
-                            // e.g. from testpackage.foo import FooClass
-                            // The pypath is testpackage.foo.FooClass, so we need to strip the final part.
-                            item
+                        } else if let Some(parent_pypath) = &raw_import.pypath.parent() {
+                            if let Some(item) = package_info
+                                .get_item_by_pypath(parent_pypath)
+                                .map(|item| item.token())
+                            {
+                                // An imported module member.
+                                // e.g. from testpackage.foo import FooClass
+                                // The pypath is testpackage.foo.FooClass, so we need to strip the final part.
+                                item
+                            } else {
+                                return Err(Error::UnknownInternalImport(raw_import.pypath))?;
+                            }
                         } else {
                             return Err(Error::UnknownInternalImport(raw_import.pypath))?;
                         }

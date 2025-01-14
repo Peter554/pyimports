@@ -16,6 +16,11 @@ pub mod pypath;
 #[cfg(feature = "testutils")]
 pub mod testutils;
 
+#[allow(dead_code)]
+#[doc(hidden)]
+#[cfg(feature = "grimp_compare")]
+mod grimp_compare;
+
 /// Extension traits used by pyimports.
 ///
 /// ```
