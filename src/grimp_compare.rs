@@ -47,7 +47,7 @@ mod tests {
 
     #[test]
     fn test_build_imports_info() -> Result<()> {
-        let imports_info = build_imports_info("./data/small_graph.json")?;
+        let imports_info = build_imports_info("data/small_graph.json")?;
 
         assert_eq!(
             imports_info
@@ -96,14 +96,14 @@ mod tests {
             }
         );
 
-        let _ = build_imports_info("./data/large_graph.json")?;
+        let _ = build_imports_info("data/large_graph.json")?;
 
         Ok(())
     }
 
     #[test]
     fn test_top_level_layers_large_graph() -> Result<()> {
-        let imports_info = build_imports_info("./data/large_graph.json")?;
+        let imports_info = build_imports_info("data/large_graph.json")?;
 
         let contract = LayeredArchitectureContract::new(&[
             Layer::new([imports_info.package_info()._item("mypackage.data")], true),
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_deep_layers_large_graph() -> Result<()> {
-        let imports_info = build_imports_info("./data/large_graph.json")?;
+        let imports_info = build_imports_info("data/large_graph.json")?;
 
         let contract = LayeredArchitectureContract::new(&[
             Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.2454157946")], true),

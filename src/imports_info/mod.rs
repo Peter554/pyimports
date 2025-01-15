@@ -389,7 +389,9 @@ fn get_all_raw_imports(
                             module.path(),
                             package_info.get_root().path(),
                         )
-                        .unwrap(),
+                        .unwrap_or_else(|_| {
+                            panic!("Failed to resolve import: {}", raw_import.pypath())
+                        }),
                         line_number: raw_import.line_number(),
                         is_typechecking: raw_import.is_typechecking(),
                     })
@@ -686,6 +688,13 @@ if TYPE_CHECKING:
             }
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_can_build_for_django() -> Result<()> {
+        let package_info = PackageInfo::build("vendor/django/django")?;
+        let _ = ImportsInfo::build(package_info)?;
         Ok(())
     }
 }

@@ -2,7 +2,7 @@ use pyimports::contracts::layers::{Layer, LayeredArchitectureContract};
 use pyimports::contracts::ImportsContract;
 use pyimports::grimp_compare::build_imports_info;
 use pyimports::imports_info::ImportsInfo;
-use pyimports::package_info::PackageItemToken;
+use pyimports::package_info::{PackageInfo, PackageItemToken};
 
 fn main() {
     divan::main();
@@ -17,8 +17,16 @@ fn _item(imports_info: &ImportsInfo, pypath: &str) -> PackageItemToken {
 }
 
 #[divan::bench]
+fn benchmark_build_imports_info_for_django(bencher: divan::Bencher) {
+    bencher.bench(|| {
+        let package_info = PackageInfo::build("vendor/django/django").unwrap();
+        let _ = ImportsInfo::build(package_info).unwrap();
+    })
+}
+
+#[divan::bench]
 fn benchmark_top_level_layers_large_graph(bencher: divan::Bencher) {
-    let imports_info = build_imports_info("./data/large_graph.json").unwrap();
+    let imports_info = build_imports_info("data/large_graph.json").unwrap();
 
     let contract = LayeredArchitectureContract::new(&[
         Layer::new([_item(&imports_info, "mypackage.data")], true),
@@ -33,7 +41,7 @@ fn benchmark_top_level_layers_large_graph(bencher: divan::Bencher) {
 
 #[divan::bench]
 fn benchmark_deep_layers_large_graph(bencher: divan::Bencher) {
-    let imports_info = build_imports_info("./data/large_graph.json").unwrap();
+    let imports_info = build_imports_info("data/large_graph.json").unwrap();
 
     let contract = LayeredArchitectureContract::new(&[
         Layer::new([_item(&imports_info, "mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.2454157946")], true),

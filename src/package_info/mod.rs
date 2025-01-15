@@ -377,7 +377,9 @@ impl PackageInfo {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn build(root_path: &Path) -> Result<PackageInfo> {
+    pub fn build<T: AsRef<Path>>(root_path: T) -> Result<PackageInfo> {
+        let root_path = root_path.as_ref();
+
         let mut packages = SlotMap::with_key();
         let mut modules = SlotMap::with_key();
         let mut packages_by_path = HashMap::new();
