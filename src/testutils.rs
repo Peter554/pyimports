@@ -1,6 +1,10 @@
+#![allow(dead_code)]
+
+use crate::contracts::{ContractVerificationResult, ContractViolation};
 use crate::imports_info::ImportsInfo;
 use crate::package_info::{PackageInfo, PackageItemToken};
 use anyhow::Result;
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -67,5 +71,54 @@ impl PackageInfo {
 impl ImportsInfo {
     pub(crate) fn _item(&self, pypath: &str) -> PackageItemToken {
         self.package_info()._item(pypath)
+    }
+}
+
+pub(crate) fn print_contract_result(
+    result: &ContractVerificationResult,
+    imports_info: &ImportsInfo,
+) {
+    match result {
+        ContractVerificationResult::Kept => {
+            println!("Contract was kept!");
+        }
+        ContractVerificationResult::Violated(violations) => {
+            println!("Contract was violated.");
+            for violation in violations {
+                match violation {
+                    ContractViolation::ForbiddenInternalImport {
+                        forbidden_import,
+                        path,
+                    } => {
+                        println!(
+                            "\nForbidden import from {} to {}",
+                            imports_info
+                                .package_info()
+                                .get_item(forbidden_import.from())
+                                .unwrap()
+                                .pypath(),
+                            imports_info
+                                .package_info()
+                                .get_item(forbidden_import.to())
+                                .unwrap()
+                                .pypath(),
+                        );
+                        let path = path
+                            .iter()
+                            .map(|token| {
+                                imports_info
+                                    .package_info()
+                                    .get_item(*token)
+                                    .unwrap()
+                                    .pypath()
+                                    .clone()
+                            })
+                            .join(" -> ");
+                        println!("Path: {}", path);
+                    }
+                    _ => panic!(),
+                }
+            }
+        }
     }
 }

@@ -1,0 +1,11 @@
+{
+  "pkg.animals.dog": [
+    "pkg.food.meat",
+    "pkg.food.fish"
+  ],
+  "pkg.animals.cat": [
+    "pkg.food.fish"
+  ],
+  "pkg.food.meat": [],
+  "pkg.food.fish": []
+}
