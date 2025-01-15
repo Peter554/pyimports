@@ -19,7 +19,7 @@ pub mod testutils;
 #[allow(dead_code)]
 #[doc(hidden)]
 #[cfg(feature = "grimp_compare")]
-mod grimp_compare;
+pub mod grimp_compare;
 
 /// Extension traits used by pyimports.
 ///
