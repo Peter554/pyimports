@@ -39,6 +39,9 @@ fn read_data_file<T: AsRef<Path>>(path: T) -> Result<HashMap<Pypath, HashSet<Pyp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contracts::layers::{Layer, LayeredArchitectureContract};
+    use crate::contracts::ImportsContract;
+    use crate::testutils::print_contract_result;
     use maplit::{hashmap, hashset};
     use pretty_assertions::assert_eq;
 
@@ -96,5 +99,58 @@ mod tests {
         let _ = build_imports_info("./data/large_graph.json")?;
 
         Ok(())
-    }   
+    }
+
+    #[test]
+    fn test_top_level_layers_large_graph() -> Result<()> {
+        let imports_info = build_imports_info("./data/large_graph.json")?;
+
+        let contract = LayeredArchitectureContract::new(&[
+            Layer::new([imports_info.package_info()._item("mypackage.data")], true),
+            Layer::new(
+                [imports_info.package_info()._item("mypackage.domain")],
+                true,
+            ),
+            Layer::new(
+                [imports_info.package_info()._item("mypackage.application")],
+                true,
+            ),
+            Layer::new(
+                [imports_info.package_info()._item("mypackage.plugins")],
+                true,
+            ),
+        ])
+        .with_deep_imports_allowed();
+
+        let result = contract.verify(&imports_info)?;
+        assert!(result.is_violated());
+
+        print_contract_result(&result, &imports_info);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_deep_layers_large_graph() -> Result<()> {
+        let imports_info = build_imports_info("./data/large_graph.json")?;
+
+        let contract = LayeredArchitectureContract::new(&[
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.2454157946")], true),
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.5033127033")], true),
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.9089085203")], true),
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.1752284225")], true),
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.1693068682")], true),
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.6666171185")], true),
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.9009030339")], true),
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.6397984863")], true),
+            Layer::new([imports_info.package_info()._item("mypackage.plugins.5634303718.1007553798.8198145119.application.3242334296.1991886645")], true),
+        ]).with_deep_imports_allowed();
+
+        let result = contract.verify(&imports_info)?;
+        assert!(result.is_violated());
+
+        print_contract_result(&result, &imports_info);
+
+        Ok(())
+    }
 }
