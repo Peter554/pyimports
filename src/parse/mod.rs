@@ -95,7 +95,9 @@ pub fn parse_imports(path: &Path) -> Result<Vec<RawImport>> {
     Ok(visitor.imports)
 }
 
-/// Resolves a relative import.
+/// Resolves relative and wildcard imports.
+///
+/// # Relative import
 ///
 /// ```
 /// # use anyhow::Result;
@@ -117,11 +119,40 @@ pub fn parse_imports(path: &Path) -> Result<Vec<RawImport>> {
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # Wildcard import
+///
+/// ```
+/// # use anyhow::Result;
+/// # use pyimports::{testpackage, testutils::TestPackage};
+/// use pyimports::parse::resolve_import;
+///
+/// # fn main() -> Result<()> {
+/// let testpackage = testpackage! {
+///     "__init__.py" => "from foo import *",
+///     "foo.py" => ""
+/// };
+///
+/// let pypath = resolve_import(
+///     "testpackage.foo.*",
+///     &testpackage.path().join("__init__.py"),
+///     &testpackage.path()
+/// )?;
+/// assert_eq!(pypath, "testpackage.foo".parse()?);
+/// # Ok(())
+/// # }
+/// ```
 pub fn resolve_import(
     imported_pypath: &str,
     module_path: &Path,
     root_path: &Path,
 ) -> Result<Pypath> {
+    let mut imported_pypath = imported_pypath.to_string();
+
+    if imported_pypath.ends_with(".*") {
+        imported_pypath = imported_pypath.strip_suffix(".*").unwrap().to_owned()
+    }
+
     if !imported_pypath.starts_with(".") {
         return Ok(imported_pypath.parse()?);
     }
@@ -294,6 +325,12 @@ import bar",
             ]
         },
         TestCase {
+            code: "from foo import *",
+            expected_imports: vec![
+                RawImport {pypath: "foo.*".into(), line_number: 1, is_typechecking: false},
+            ]
+        },
+        TestCase {
             code: "from . import foo",
             expected_imports: vec![
                 RawImport {pypath: ".foo".into(), line_number: 1, is_typechecking: false}
@@ -418,6 +455,11 @@ else:
             pypath: "..bar.ABC",
             path: "subpackage/foo.py",
             expected:   Pypath::new("testpackage.bar.ABC")
+        },
+        RelativeImportsTestCase {
+            pypath: ".bar.*",
+            path: "foo.py",
+            expected:  Pypath::new("testpackage.bar")
         },
     })]
     fn test_resolve_import(case: RelativeImportsTestCase<'_>) -> Result<()> {

@@ -100,12 +100,15 @@ impl Pypath {
     /// let foo_bar: Pypath = "foo.bar".parse().unwrap();
     /// let foo_bar_baz: Pypath = "foo.bar.baz".parse().unwrap();
     ///
-    ///assert!(foo_bar_baz.parent() == foo_bar);
+    ///assert!(foo_bar_baz.parent() == Some(foo_bar));
     /// ```
-    pub fn parent(&self) -> Self {
+    pub fn parent(&self) -> Option<Self> {
         let mut v = self.0.split(".").collect::<Vec<_>>();
+        if v.len() == 1 {
+            return None;
+        }
         v.pop();
-        Pypath(v.join("."))
+        Some(Pypath(v.join(".")))
     }
 
     /// Checks whether this pypath is internal to the passed package.
@@ -212,8 +215,12 @@ mod tests {
 
     #[test]
     fn test_parent() -> Result<()> {
-        assert_eq!(Pypath::new("foo.bar.baz").parent(), Pypath::new("foo.bar"));
-        assert_eq!(Pypath::new("foo.bar").parent(), Pypath::new("foo"));
+        assert_eq!(
+            Pypath::new("foo.bar.baz").parent(),
+            Some(Pypath::new("foo.bar"))
+        );
+        assert_eq!(Pypath::new("foo.bar").parent(), Some(Pypath::new("foo")));
+        assert_eq!(Pypath::new("foo").parent(), None);
 
         Ok(())
     }
