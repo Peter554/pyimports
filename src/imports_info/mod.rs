@@ -2,7 +2,6 @@
 //! See [`ImportsInfo`].
 mod queries;
 
-#[allow(dead_code)]
 #[doc(hidden)]
 #[cfg(feature = "grimp_compare")]
 pub(crate) mod grimp_compare;

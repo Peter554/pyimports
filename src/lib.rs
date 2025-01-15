@@ -16,7 +16,6 @@ pub mod pypath;
 #[cfg(feature = "testutils")]
 pub mod testutils;
 
-#[allow(dead_code)]
 #[doc(hidden)]
 #[cfg(feature = "grimp_compare")]
 pub mod grimp_compare;
