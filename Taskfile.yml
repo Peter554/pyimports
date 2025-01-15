@@ -5,6 +5,10 @@ tasks:
     cmds:
       - cargo test --all-features
 
+  bench:
+    cmds:
+      - cargo bench --all-features
+
   check.clippy:
     cmds:
       - cargo clippy --all-targets --all-features -- -D warnings
