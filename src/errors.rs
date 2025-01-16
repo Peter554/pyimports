@@ -1,6 +1,6 @@
 //! Errors
 
-use crate::package_info::{ModuleToken, PackageToken};
+use crate::package_info::PackageItemToken;
 use crate::pypath::Pypath;
 use rustpython_parser::ParseError;
 use std::path::PathBuf;
@@ -9,11 +9,8 @@ use thiserror::Error;
 #[allow(missing_docs)]
 #[derive(Error, Debug, PartialEq)]
 pub enum Error {
-    #[error("unknown package {0:?}")]
-    UnknownPackage(PackageToken),
-
-    #[error("unknown module {0:?}")]
-    UnknownModule(ModuleToken),
+    #[error("unknown package item {0:?}")]
+    UnknownPackageItem(PackageItemToken),
 
     #[error("unable to parse python file {path}")]
     UnableToParsePythonFile {

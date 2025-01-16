@@ -9,6 +9,7 @@ use derive_more::{IsVariant, Unwrap};
 use derive_new::new;
 use getset::Getters;
 use pathfinding::prelude::{bfs, bfs_reach};
+use slotmap::SecondaryMap;
 
 /// An object that allows querying internal imports.
 pub struct InternalImportsQueries<'a> {
@@ -146,7 +147,11 @@ impl<'a> InternalImportsQueries<'a> {
     /// # }
     /// ```
     pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<PackageItemToken>> {
-        self.imports_info.internal_imports.clone()
+        self.imports_info
+            .internal_imports
+            .clone()
+            .into_iter()
+            .collect()
     }
 
     /// Returns true if a direct import exists.
@@ -195,7 +200,7 @@ impl<'a> InternalImportsQueries<'a> {
         Ok(self
             .imports_info
             .internal_imports
-            .get(&from)
+            .get(from)
             .unwrap()
             .contains(&to))
     }
@@ -247,7 +252,7 @@ impl<'a> InternalImportsQueries<'a> {
         Ok(self
             .imports_info
             .internal_imports
-            .get(&item)
+            .get(item)
             .unwrap()
             .clone())
     }
@@ -299,7 +304,7 @@ impl<'a> InternalImportsQueries<'a> {
         Ok(self
             .imports_info
             .reverse_internal_imports
-            .get(&item)
+            .get(item)
             .unwrap()
             .clone())
     }
@@ -406,7 +411,7 @@ impl<'a> InternalImportsQueries<'a> {
     fn bfs_reach<T: Into<HashSet<PackageItemToken>>>(
         &'a self,
         items: T,
-        imports_map: &HashMap<PackageItemToken, HashSet<PackageItemToken>>,
+        imports_map: &SecondaryMap<PackageItemToken, HashSet<PackageItemToken>>,
     ) -> Result<HashSet<PackageItemToken>> {
         let items: HashSet<PackageItemToken> = items.into();
 
@@ -417,7 +422,7 @@ impl<'a> InternalImportsQueries<'a> {
         let reachable_items = bfs_reach(PathfindingNode::Initial, |item| {
             let items = match item {
                 PathfindingNode::Initial => &items,
-                PathfindingNode::PackageItem(item) => imports_map.get(item).unwrap(),
+                PathfindingNode::PackageItem(item) => imports_map.get(**item).unwrap(),
             };
             items.iter().map(PathfindingNode::PackageItem)
         })
@@ -552,7 +557,7 @@ impl<'a> InternalImportsQueries<'a> {
                 let items = match item {
                     PathfindingNode::Initial => &query.from,
                     PathfindingNode::PackageItem(item) => {
-                        self.imports_info.internal_imports.get(item).unwrap()
+                        self.imports_info.internal_imports.get(**item).unwrap()
                     }
                 };
 

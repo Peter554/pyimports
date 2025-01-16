@@ -23,6 +23,7 @@ use crate::pypath::Pypath;
 use anyhow::Result;
 use rayon::iter::ParallelBridge;
 use rayon::prelude::*;
+use slotmap::SecondaryMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -95,11 +96,11 @@ pub struct ImportsInfo {
     // Use `Arc` to avoid cloning `package_info` on `import_info.clone()`.
     package_info: Arc<PackageInfo>,
     //
-    internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
-    reverse_internal_imports: HashMap<PackageItemToken, HashSet<PackageItemToken>>,
+    internal_imports: SecondaryMap<PackageItemToken, HashSet<PackageItemToken>>,
+    reverse_internal_imports: SecondaryMap<PackageItemToken, HashSet<PackageItemToken>>,
     internal_imports_metadata: HashMap<(PackageItemToken, PackageItemToken), ImportMetadata>,
     //
-    external_imports: HashMap<PackageItemToken, HashSet<Pypath>>,
+    external_imports: SecondaryMap<PackageItemToken, HashSet<Pypath>>,
     external_imports_metadata: HashMap<(PackageItemToken, Pypath), ImportMetadata>,
 }
 
@@ -155,10 +156,10 @@ impl ImportsInfo {
 
         let mut imports_info = ImportsInfo {
             package_info: Arc::clone(&package_info),
-            internal_imports: HashMap::new(),
-            reverse_internal_imports: HashMap::new(),
+            internal_imports: SecondaryMap::default(),
+            reverse_internal_imports: SecondaryMap::default(),
             internal_imports_metadata: HashMap::new(),
-            external_imports: HashMap::new(),
+            external_imports: SecondaryMap::default(),
             external_imports_metadata: HashMap::new(),
         };
 
@@ -168,8 +169,8 @@ impl ImportsInfo {
         for package in package_info.get_all_items().filter_packages() {
             if let Some(init_module) = package.init_module() {
                 imports_info.add_internal_import(
-                    package.token().into(),
-                    init_module.into(),
+                    package.token(),
+                    init_module,
                     ImportMetadata::ImplicitImport,
                 )?;
             }
@@ -293,12 +294,19 @@ impl ImportsInfo {
 
     fn initialise_maps(&mut self) -> Result<()> {
         for item in self.package_info.get_all_items() {
-            self.internal_imports.entry(item.token()).or_default();
+            self.internal_imports
+                .entry(item.token())
+                .unwrap()
+                .or_default();
             self.reverse_internal_imports
                 .entry(item.token())
+                .unwrap()
                 .or_default();
             //
-            self.external_imports.entry(item.token()).or_default();
+            self.external_imports
+                .entry(item.token())
+                .unwrap()
+                .or_default();
         }
         Ok(())
     }
@@ -309,9 +317,14 @@ impl ImportsInfo {
         to: PackageItemToken,
         metadata: ImportMetadata,
     ) -> Result<()> {
-        self.internal_imports.entry(from).or_default().insert(to);
+        self.internal_imports
+            .entry(from)
+            .unwrap()
+            .or_default()
+            .insert(to);
         self.reverse_internal_imports
             .entry(to)
+            .unwrap()
             .or_default()
             .insert(from);
         self.internal_imports_metadata.insert((from, to), metadata);
@@ -323,12 +336,17 @@ impl ImportsInfo {
         from: PackageItemToken,
         to: PackageItemToken,
     ) -> Result<()> {
-        if self.internal_imports.contains_key(&from) {
-            self.internal_imports.entry(from).or_default().remove(&to);
+        if self.internal_imports.contains_key(from) {
+            self.internal_imports
+                .entry(from)
+                .unwrap()
+                .or_default()
+                .remove(&to);
         }
-        if self.reverse_internal_imports.contains_key(&to) {
+        if self.reverse_internal_imports.contains_key(to) {
             self.reverse_internal_imports
                 .entry(to)
+                .unwrap()
                 .or_default()
                 .remove(&from);
         }
@@ -344,6 +362,7 @@ impl ImportsInfo {
     ) -> Result<()> {
         self.external_imports
             .entry(from)
+            .unwrap()
             .or_default()
             .insert(to.clone());
         self.external_imports_metadata.insert((from, to), metadata);
@@ -351,8 +370,12 @@ impl ImportsInfo {
     }
 
     fn remove_external_import(&mut self, from: PackageItemToken, to: Pypath) -> Result<()> {
-        if self.external_imports.contains_key(&from) {
-            self.external_imports.entry(from).or_default().remove(&to);
+        if self.external_imports.contains_key(from) {
+            self.external_imports
+                .entry(from)
+                .unwrap()
+                .or_default()
+                .remove(&to);
         };
         self.external_imports_metadata.remove(&(from, to));
         Ok(())
@@ -396,9 +419,7 @@ fn get_all_raw_imports(
                     })
                     .collect::<Vec<_>>();
 
-                hm.entry(module.token().into())
-                    .or_default()
-                    .extend(raw_imports);
+                hm.entry(module.token()).or_default().extend(raw_imports);
 
                 Ok(hm)
             },
@@ -445,7 +466,11 @@ from django.db import models
         let b = imports_info._item("testpackage.b");
 
         assert_eq!(
-            imports_info.internal_imports,
+            imports_info
+                .internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset! {root_package_init},
                 root_package_init => hashset! {a, b},
@@ -455,7 +480,11 @@ from django.db import models
         );
 
         assert_eq!(
-            imports_info.reverse_internal_imports,
+            imports_info
+                .reverse_internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset!{},
                 root_package_init => hashset! {root_package},
@@ -484,7 +513,11 @@ from django.db import models
         );
 
         assert_eq!(
-            imports_info.external_imports,
+            imports_info
+                .external_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<Pypath>>>(),
             hashmap! {
                 root_package => hashset! {},
                 root_package_init => hashset! {},
@@ -526,7 +559,11 @@ from testpackage import b
         let b = imports_info._item("testpackage.b");
 
         assert_eq!(
-            imports_info.internal_imports,
+            imports_info
+                .internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset! {root_package_init},
                 root_package_init => hashset! {a, b},
@@ -536,7 +573,11 @@ from testpackage import b
         );
 
         assert_eq!(
-            imports_info.reverse_internal_imports,
+            imports_info
+                .reverse_internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset!{},
                 root_package_init => hashset! {root_package},
@@ -563,7 +604,11 @@ from testpackage import b
         imports_info.remove_imports(vec![(root_package_init, a)], vec![])?;
 
         assert_eq!(
-            imports_info.internal_imports,
+            imports_info
+                .internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset! {root_package_init},
                 root_package_init => hashset! {b},
@@ -573,7 +618,11 @@ from testpackage import b
         );
 
         assert_eq!(
-            imports_info.reverse_internal_imports,
+            imports_info
+                .reverse_internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset!{},
                 root_package_init => hashset! {root_package},
@@ -620,7 +669,11 @@ if TYPE_CHECKING:
         let b = imports_info._item("testpackage.b");
 
         assert_eq!(
-            imports_info.internal_imports,
+            imports_info
+                .internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset! {root_package_init},
                 root_package_init => hashset! {a, b},
@@ -630,7 +683,11 @@ if TYPE_CHECKING:
         );
 
         assert_eq!(
-            imports_info.reverse_internal_imports,
+            imports_info
+                .reverse_internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset!{},
                 root_package_init => hashset! {root_package},
@@ -657,7 +714,11 @@ if TYPE_CHECKING:
         imports_info.remove_typechecking_imports()?;
 
         assert_eq!(
-            imports_info.internal_imports,
+            imports_info
+                .internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset! {root_package_init},
                 root_package_init => hashset! {a},
@@ -667,7 +728,11 @@ if TYPE_CHECKING:
         );
 
         assert_eq!(
-            imports_info.reverse_internal_imports,
+            imports_info
+                .reverse_internal_imports
+                .clone()
+                .into_iter()
+                .collect::<HashMap<PackageItemToken, HashSet<PackageItemToken>>>(),
             hashmap! {
                 root_package => hashset!{},
                 root_package_init => hashset! {root_package},

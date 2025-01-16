@@ -15,7 +15,7 @@ use core::fmt;
 use derive_more::{IsVariant, Unwrap};
 use getset::{CopyGetters, Getters};
 use maplit::hashset;
-pub use queries::PackageItemIterator;
+pub use queries::{MutPackageItemIterator, PackageItemIterator};
 use slotmap::{new_key_type, SlotMap};
 use std::{
     collections::{HashMap, HashSet},
@@ -23,15 +23,128 @@ use std::{
 };
 
 new_key_type! {
-    /// A token used to identify a python package within [`PackageInfo`].
-    /// See also [`PackageItemToken`].
-    pub struct PackageToken;
+    /// A token used to identify an item within a python package.
+    pub struct PackageItemToken;
 }
 
-new_key_type! {
-    /// A token used to identify a python module within [`PackageInfo`].
-    /// See also [`PackageItemToken`].
-    pub struct ModuleToken;
+/// A unified representation of an item within a package.
+///
+/// ```
+/// # use std::collections::HashSet;
+/// # use anyhow::Result;
+/// # use pyimports::{testpackage,testutils::TestPackage};
+/// use pyimports::package_info::{PackageInfo,Package,Module,PackageItem};
+///
+/// # fn main() -> Result<()> {
+/// let testpackage = testpackage! {
+///     "__init__.py" => ""
+/// };
+///
+/// let package_info = PackageInfo::build(testpackage.path())?;
+///
+/// let root_pkg: &PackageItem = package_info.get_item_by_pypath(&"testpackage".parse()?).unwrap();
+/// let root_init: &PackageItem = package_info.get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap();
+/// # Ok(())
+/// # }
+/// ```
+#[derive(Debug, Clone, PartialEq, IsVariant, Unwrap)]
+#[unwrap(ref, ref_mut)]
+pub enum PackageItem {
+    /// A package.
+    Package(Package),
+    /// A module.
+    Module(Module),
+}
+
+impl fmt::Display for PackageItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PackageItem::Package(p) => p.fmt(f),
+            PackageItem::Module(m) => m.fmt(f),
+        }
+    }
+}
+
+impl From<Package> for PackageItem {
+    fn from(value: Package) -> Self {
+        PackageItem::Package(value)
+    }
+}
+
+impl From<Module> for PackageItem {
+    fn from(value: Module) -> Self {
+        PackageItem::Module(value)
+    }
+}
+
+impl TryFrom<PackageItem> for Package {
+    type Error = Error;
+
+    fn try_from(value: PackageItem) -> std::result::Result<Self, Self::Error> {
+        match value {
+            PackageItem::Package(package) => Ok(package),
+            PackageItem::Module(_) => Err(Error::NotAPackage),
+        }
+    }
+}
+
+impl TryFrom<PackageItem> for Module {
+    type Error = Error;
+
+    fn try_from(value: PackageItem) -> std::result::Result<Self, Self::Error> {
+        match value {
+            PackageItem::Package(_) => Err(Error::NotAModule),
+            PackageItem::Module(module) => Ok(module),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a PackageItem> for &'a Package {
+    type Error = Error;
+
+    fn try_from(value: &'a PackageItem) -> std::result::Result<Self, Self::Error> {
+        match value {
+            PackageItem::Package(package) => Ok(package),
+            PackageItem::Module(_) => Err(Error::NotAPackage),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a PackageItem> for &'a Module {
+    type Error = Error;
+
+    fn try_from(value: &'a PackageItem) -> std::result::Result<Self, Self::Error> {
+        match value {
+            PackageItem::Package(_) => Err(Error::NotAModule),
+            PackageItem::Module(module) => Ok(module),
+        }
+    }
+}
+
+impl PackageItem {
+    /// The token for this package item.
+    pub fn token(&self) -> PackageItemToken {
+        match self {
+            PackageItem::Package(p) => p.token,
+            PackageItem::Module(m) => m.token,
+        }
+    }
+
+    /// The filesystem path for this package item.
+    pub fn path(&self) -> &Path {
+        match self {
+            PackageItem::Package(p) => &p.path,
+            PackageItem::Module(m) => &m.path,
+        }
+    }
+
+    /// The pypath for this package item.
+    pub fn pypath(&self) -> &Pypath {
+        match self {
+            PackageItem::Package(p) => &p.pypath,
+            PackageItem::Module(m) => &m.pypath,
+        }
+    }
 }
 
 /// A python package.
@@ -47,19 +160,19 @@ pub struct Package {
 
     /// This package.
     #[getset(get_copy = "pub")]
-    token: PackageToken,
+    token: PackageItemToken,
     /// The parent package.
     #[getset(get_copy = "pub")]
-    parent: Option<PackageToken>,
+    parent: Option<PackageItemToken>,
     /// Child packages.
     #[getset(get = "pub")]
-    packages: HashSet<PackageToken>,
+    packages: HashSet<PackageItemToken>,
     /// Child modules.
     #[getset(get = "pub")]
-    modules: HashSet<ModuleToken>,
+    modules: HashSet<PackageItemToken>,
     /// The init module.
     #[getset(get_copy = "pub")]
-    init_module: Option<ModuleToken>,
+    init_module: Option<PackageItemToken>,
 }
 
 impl fmt::Display for Package {
@@ -70,8 +183,8 @@ impl fmt::Display for Package {
 
 impl Package {
     fn new(
-        token: PackageToken,
-        parent_token: Option<PackageToken>,
+        token: PackageItemToken,
+        parent_token: Option<PackageItemToken>,
         path: &Path,
         root_path: &Path,
     ) -> Package {
@@ -104,10 +217,10 @@ pub struct Module {
 
     /// This module.
     #[getset(get_copy = "pub")]
-    token: ModuleToken,
+    token: PackageItemToken,
     /// The parent package.
     #[getset(get_copy = "pub")]
-    parent: PackageToken,
+    parent: PackageItemToken,
 }
 
 impl fmt::Display for Module {
@@ -118,8 +231,8 @@ impl fmt::Display for Module {
 
 impl Module {
     fn new(
-        token: ModuleToken,
-        parent_token: PackageToken,
+        token: PackageItemToken,
+        parent_token: PackageItemToken,
         path: &Path,
         root_path: &Path,
     ) -> Module {
@@ -173,188 +286,10 @@ impl Module {
 /// ```
 #[derive(Debug, Clone)]
 pub struct PackageInfo {
-    root: PackageToken,
-    packages: SlotMap<PackageToken, Package>,
-    modules: SlotMap<ModuleToken, Module>,
-    packages_by_path: HashMap<PathBuf, PackageToken>,
-    packages_by_pypath: HashMap<Pypath, PackageToken>,
-    modules_by_path: HashMap<PathBuf, ModuleToken>,
-    modules_by_pypath: HashMap<Pypath, ModuleToken>,
-}
-
-/// A unified representation of an item within a package.
-///
-/// ```
-/// # use std::collections::HashSet;
-/// # use anyhow::Result;
-/// # use pyimports::{testpackage,testutils::TestPackage};
-/// use pyimports::package_info::{PackageInfo,Package,Module,PackageItem};
-///
-/// # fn main() -> Result<()> {
-/// let testpackage = testpackage! {
-///     "__init__.py" => ""
-/// };
-///
-/// let package_info = PackageInfo::build(testpackage.path())?;
-///
-/// let root_pkg: PackageItem = package_info.get_item_by_pypath(&"testpackage".parse()?).unwrap();
-/// let root_init: PackageItem = package_info.get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap();
-///
-/// let root_pkg: &Package = root_pkg.try_into()?;
-/// let root_init: &Module = root_init.try_into()?;
-///
-/// let root_pkg: PackageItem = root_pkg.into();
-/// let root_init: PackageItem = root_init.into();
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Debug, Clone, PartialEq, IsVariant, Unwrap)]
-pub enum PackageItem<'a> {
-    /// A package.
-    Package(&'a Package),
-    /// A module.
-    Module(&'a Module),
-}
-
-impl fmt::Display for PackageItem<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PackageItem::Package(p) => p.fmt(f),
-            PackageItem::Module(m) => m.fmt(f),
-        }
-    }
-}
-
-/// A unified token for a [`PackageItem`] within [`PackageInfo`].
-///
-/// ```
-/// # use std::collections::HashSet;
-/// # use anyhow::Result;
-/// # use pyimports::{testpackage,testutils::TestPackage};
-/// use pyimports::package_info::{PackageInfo,PackageToken,ModuleToken,PackageItemToken};
-///
-/// # fn main() -> Result<()> {
-/// let testpackage = testpackage! {
-///     "__init__.py" => ""
-/// };
-///
-/// let package_info = PackageInfo::build(testpackage.path())?;
-///
-/// let root_pkg: PackageItemToken = package_info
-///     .get_item_by_pypath(&"testpackage".parse()?).unwrap()
-///     .token();
-/// let root_init: PackageItemToken = package_info
-///     .get_item_by_pypath(&"testpackage.__init__".parse()?).unwrap()
-///     .token();
-///
-/// let root_pkg: PackageToken = root_pkg.try_into()?;
-/// let root_init: ModuleToken = root_init.try_into()?;
-///
-/// let root_pkg: PackageItemToken = root_pkg.into();
-/// let root_init: PackageItemToken = root_init.into();
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap)]
-pub enum PackageItemToken {
-    /// A package.
-    Package(PackageToken),
-    /// A module.
-    Module(ModuleToken),
-}
-
-impl From<PackageToken> for PackageItemToken {
-    fn from(value: PackageToken) -> Self {
-        PackageItemToken::Package(value)
-    }
-}
-
-impl From<ModuleToken> for PackageItemToken {
-    fn from(value: ModuleToken) -> Self {
-        PackageItemToken::Module(value)
-    }
-}
-
-impl<'a> From<&'a Package> for PackageItem<'a> {
-    fn from(value: &'a Package) -> Self {
-        PackageItem::Package(value)
-    }
-}
-
-impl<'a> From<&'a Module> for PackageItem<'a> {
-    fn from(value: &'a Module) -> Self {
-        PackageItem::Module(value)
-    }
-}
-
-impl TryFrom<PackageItemToken> for PackageToken {
-    type Error = Error;
-
-    fn try_from(value: PackageItemToken) -> std::result::Result<Self, Self::Error> {
-        match value {
-            PackageItemToken::Package(token) => Ok(token),
-            PackageItemToken::Module(_) => Err(Error::NotAPackage),
-        }
-    }
-}
-
-impl TryFrom<PackageItemToken> for ModuleToken {
-    type Error = Error;
-
-    fn try_from(value: PackageItemToken) -> std::result::Result<Self, Self::Error> {
-        match value {
-            PackageItemToken::Package(_) => Err(Error::NotAModule),
-            PackageItemToken::Module(token) => Ok(token),
-        }
-    }
-}
-
-impl<'a> TryFrom<PackageItem<'a>> for &'a Package {
-    type Error = Error;
-
-    fn try_from(value: PackageItem<'a>) -> std::result::Result<Self, Self::Error> {
-        match value {
-            PackageItem::Package(package) => Ok(package),
-            PackageItem::Module(_) => Err(Error::NotAPackage),
-        }
-    }
-}
-
-impl<'a> TryFrom<PackageItem<'a>> for &'a Module {
-    type Error = Error;
-
-    fn try_from(value: PackageItem<'a>) -> std::result::Result<Self, Self::Error> {
-        match value {
-            PackageItem::Package(_) => Err(Error::NotAModule),
-            PackageItem::Module(module) => Ok(module),
-        }
-    }
-}
-
-impl<'a> PackageItem<'a> {
-    /// The token for this package item.
-    pub fn token(&'a self) -> PackageItemToken {
-        match self {
-            PackageItem::Package(p) => p.token.into(),
-            PackageItem::Module(m) => m.token.into(),
-        }
-    }
-
-    /// The filesystem path for this package item.
-    pub fn path(&'a self) -> &'a Path {
-        match self {
-            PackageItem::Package(p) => &p.path,
-            PackageItem::Module(m) => &m.path,
-        }
-    }
-
-    /// The pypath for this package item.
-    pub fn pypath(&'a self) -> &'a Pypath {
-        match self {
-            PackageItem::Package(p) => &p.pypath,
-            PackageItem::Module(m) => &m.pypath,
-        }
-    }
+    root: PackageItemToken,
+    items: SlotMap<PackageItemToken, PackageItem>,
+    items_by_path: HashMap<PathBuf, PackageItemToken>,
+    items_by_pypath: HashMap<Pypath, PackageItemToken>,
 }
 
 impl PackageInfo {
@@ -379,17 +314,14 @@ impl PackageInfo {
     pub fn build<T: AsRef<Path>>(root_path: T) -> Result<PackageInfo> {
         let root_path = root_path.as_ref();
 
-        let mut packages = SlotMap::with_key();
-        let mut modules = SlotMap::with_key();
-        let mut packages_by_path = HashMap::new();
-        let mut packages_by_pypath = HashMap::new();
-        let mut modules_by_path = HashMap::new();
-        let mut modules_by_pypath = HashMap::new();
+        let mut items: SlotMap<PackageItemToken, PackageItem> = SlotMap::with_key();
+        let mut items_by_path = HashMap::new();
+        let mut items_by_pypath = HashMap::new();
 
         let root =
-            packages.insert_with_key(|token| Package::new(token, None, root_path, root_path));
-        packages_by_path.insert(root_path.to_path_buf(), root);
-        packages_by_pypath.insert(Pypath::from_path(root_path, root_path)?, root);
+            items.insert_with_key(|token| Package::new(token, None, root_path, root_path).into());
+        items_by_path.insert(root_path.to_path_buf(), root);
+        items_by_pypath.insert(Pypath::from_path(root_path, root_path)?, root);
 
         let fs_items = filesystem::DirectoryReader::new()
             .with_hidden_items_excluded()
@@ -400,40 +332,37 @@ impl PackageInfo {
         for fs_item in fs_items {
             match fs_item {
                 filesystem::FsItem::Directory { path } => {
-                    let parent_token = packages_by_path.get(path.parent().unwrap()).unwrap();
-                    let token = packages.insert_with_key(|token| {
-                        Package::new(token, Some(*parent_token), &path, root_path)
+                    let parent_token = items_by_path.get(path.parent().unwrap()).unwrap();
+                    let token = items.insert_with_key(|token| {
+                        Package::new(token, Some(*parent_token), &path, root_path).into()
                     });
-                    let parent = packages.get_mut(*parent_token).unwrap();
+                    let parent = items.get_mut(*parent_token).unwrap().unwrap_package_mut();
                     parent.packages.insert(token);
-                    packages_by_path.insert(path.clone(), token);
-                    packages_by_pypath.insert(Pypath::from_path(&path, root_path)?, token);
+                    items_by_path.insert(path.clone(), token);
+                    items_by_pypath.insert(Pypath::from_path(&path, root_path)?, token);
                 }
                 filesystem::FsItem::File { path } => {
-                    let parent_token = packages_by_path.get(path.parent().unwrap()).unwrap();
-                    let token = modules.insert_with_key(|token| {
-                        Module::new(token, *parent_token, &path, root_path)
+                    let parent_token = items_by_path.get(path.parent().unwrap()).unwrap();
+                    let token = items.insert_with_key(|token| {
+                        Module::new(token, *parent_token, &path, root_path).into()
                     });
-                    let is_init = modules.get(token).unwrap().is_init;
-                    let parent = packages.get_mut(*parent_token).unwrap();
+                    let is_init = items.get(token).unwrap().unwrap_module_ref().is_init;
+                    let parent = items.get_mut(*parent_token).unwrap().unwrap_package_mut();
                     parent.modules.insert(token);
                     if is_init {
                         parent.init_module = Some(token);
                     }
-                    modules_by_path.insert(path.clone(), token);
-                    modules_by_pypath.insert(Pypath::from_path(&path, root_path)?, token);
+                    items_by_path.insert(path.clone(), token);
+                    items_by_pypath.insert(Pypath::from_path(&path, root_path)?, token);
                 }
             }
         }
 
         Ok(PackageInfo {
             root,
-            packages,
-            modules,
-            packages_by_path,
-            packages_by_pypath,
-            modules_by_path,
-            modules_by_pypath,
+            items,
+            items_by_path,
+            items_by_pypath,
         })
     }
 }
@@ -480,16 +409,10 @@ pub trait ExtendWithDescendants:
     /// Extend this collection of package item tokens with all descendant items.
     fn extend_with_descendants(&mut self, package_info: &PackageInfo) {
         for item in self.clone().into_iter() {
-            let descendants = match item {
-                PackageItemToken::Package(item) => match package_info.get_descendant_items(item) {
-                    Ok(descendants) => descendants.map(|item| item.token()).collect::<HashSet<_>>(),
-                    Err(e) => match e.downcast_ref::<Error>() {
-                        Some(Error::NotAPackage) => hashset! {},
-                        _ => panic!(),
-                    },
-                },
-                PackageItemToken::Module(_) => hashset! {},
-            };
+            let descendants = package_info
+                .get_descendant_items(item)
+                .unwrap()
+                .map(|item| item.token());
             self.extend(descendants);
         }
     }
@@ -526,31 +449,35 @@ mod tests {
         let package_info = PackageInfo::build(testpackage.path())?;
 
         let root_package_token = *package_info
-            .packages_by_pypath
+            .items_by_pypath
             .get(&"testpackage".parse()?)
             .unwrap();
         let root_package_init_token = *package_info
-            .modules_by_pypath
+            .items_by_pypath
             .get(&"testpackage.__init__".parse()?)
             .unwrap();
         let main_token = *package_info
-            .modules_by_pypath
+            .items_by_pypath
             .get(&"testpackage.main".parse()?)
             .unwrap();
         let colors_package_token = *package_info
-            .packages_by_pypath
+            .items_by_pypath
             .get(&"testpackage.colors".parse()?)
             .unwrap();
         let colors_package_init_token = *package_info
-            .modules_by_pypath
+            .items_by_pypath
             .get(&"testpackage.colors.__init__".parse()?)
             .unwrap();
         let red_token = *package_info
-            .modules_by_pypath
+            .items_by_pypath
             .get(&"testpackage.colors.red".parse()?)
             .unwrap();
 
-        let root_package = package_info.packages.get(root_package_token).unwrap();
+        let root_package = package_info
+            .items
+            .get(root_package_token)
+            .unwrap()
+            .unwrap_package_ref();
         assert_eq!(root_package.parent, None);
         assert_eq!(root_package.init_module, Some(root_package_init_token));
         assert_eq!(
@@ -559,7 +486,11 @@ mod tests {
         );
         assert_eq!(root_package.packages, hashset! {colors_package_token});
 
-        let colors_package = package_info.packages.get(colors_package_token).unwrap();
+        let colors_package = package_info
+            .items
+            .get(colors_package_token)
+            .unwrap()
+            .unwrap_package_ref();
         assert_eq!(colors_package.parent, Some(root_package_token));
         assert_eq!(colors_package.init_module, Some(colors_package_init_token));
         assert_eq!(
@@ -568,11 +499,19 @@ mod tests {
         );
         assert_eq!(colors_package.packages, hashset! {});
 
-        let root_package_init = package_info.modules.get(root_package_init_token).unwrap();
+        let root_package_init = package_info
+            .items
+            .get(root_package_init_token)
+            .unwrap()
+            .unwrap_module_ref();
         assert_eq!(root_package_init.is_init, true);
         assert_eq!(root_package_init.parent, root_package_token);
 
-        let main = package_info.modules.get(main_token).unwrap();
+        let main = package_info
+            .items
+            .get(main_token)
+            .unwrap()
+            .unwrap_module_ref();
         assert_eq!(main.is_init, false);
         assert_eq!(main.parent, root_package_token);
 

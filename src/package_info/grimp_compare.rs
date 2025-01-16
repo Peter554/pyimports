@@ -1,4 +1,5 @@
-use crate::package_info::{Module, ModuleToken, Package, PackageInfo, PackageToken};
+use crate::package_info::{Module, Package, PackageInfo, PackageItem, PackageItemToken};
+use crate::prelude::*;
 use crate::pypath::Pypath;
 use anyhow::Result;
 use itertools::Itertools;
@@ -9,14 +10,12 @@ use std::path::PathBuf;
 pub(crate) fn build_package_info(data: &HashMap<Pypath, HashSet<Pypath>>) -> Result<PackageInfo> {
     let all_pypaths = data.keys().cloned();
 
-    let mut packages: SlotMap<PackageToken, Package> = SlotMap::with_key();
-    let mut modules: SlotMap<ModuleToken, Module> = SlotMap::with_key();
-    let mut packages_by_pypath = HashMap::new();
-    let mut modules_by_pypath = HashMap::new();
+    let mut items: SlotMap<PackageItemToken, PackageItem> = SlotMap::with_key();
+    let mut items_by_pypath = HashMap::new();
 
     // `sorted_by_key` here puts deepest pypaths first.
     for pypath in all_pypaths.sorted_by_key(|pypath| -count_dots(pypath)) {
-        if packages_by_pypath.contains_key(&pypath) {
+        if items_by_pypath.contains_key(&pypath) {
             continue;
         }
 
@@ -29,70 +28,86 @@ pub(crate) fn build_package_info(data: &HashMap<Pypath, HashSet<Pypath>>) -> Res
             pypaths
         };
 
-        let mut parent: Option<PackageToken> = None;
+        let mut parent: Option<PackageItemToken> = None;
         while let Some(pypath) = pypaths.pop() {
             if pypaths.is_empty() {
-                let token = modules.insert_with_key(|token| Module {
-                    path: PathBuf::new(),
-                    pypath: pypath.clone(),
-                    is_init: false,
-                    token,
-                    parent: parent.unwrap(),
+                let token = items.insert_with_key(|token| {
+                    Module {
+                        path: PathBuf::new(),
+                        pypath: pypath.clone(),
+                        is_init: false,
+                        token,
+                        parent: parent.unwrap(),
+                    }
+                    .into()
                 });
-                modules_by_pypath.insert(pypath, token);
-            } else if let Some(token) = packages_by_pypath.get(&pypath) {
+                items_by_pypath.insert(pypath, token);
+            } else if let Some(token) = items_by_pypath.get(&pypath) {
                 parent = Some(*token)
             } else {
-                let token = packages.insert_with_key(|token| Package {
-                    path: PathBuf::new(),
-                    pypath: pypath.clone(),
-                    token,
-                    parent,
-                    packages: HashSet::new(),
-                    modules: HashSet::new(),
-                    init_module: None,
+                let token = items.insert_with_key(|token| {
+                    Package {
+                        path: PathBuf::new(),
+                        pypath: pypath.clone(),
+                        token,
+                        parent,
+                        packages: HashSet::new(),
+                        modules: HashSet::new(),
+                        init_module: None,
+                    }
+                    .into()
                 });
-                packages_by_pypath.insert(pypath, token);
+                items_by_pypath.insert(pypath, token);
                 parent = Some(token)
             }
         }
     }
 
     // Add init modules.
-    for package in packages.values_mut() {
+    for package in items.clone().values().filter_packages() {
         let pypath: Pypath = (package.pypath.to_string() + ".__init__").parse().unwrap();
-        let token = modules.insert_with_key(|token| Module {
-            path: PathBuf::new(),
-            pypath: pypath.clone(),
-            is_init: true,
-            token,
-            parent: package.token,
+        let token = items.insert_with_key(|token| {
+            Module {
+                path: PathBuf::new(),
+                pypath: pypath.clone(),
+                is_init: true,
+                token,
+                parent: package.token,
+            }
+            .into()
         });
-        modules_by_pypath.insert(pypath, token);
-        package.init_module = Some(token);
+        items_by_pypath.insert(pypath, token);
+        items
+            .get_mut(package.token)
+            .unwrap()
+            .unwrap_package_mut()
+            .init_module = Some(token);
     }
 
     // Add package children.
-    for package in packages.clone().values() {
+    for package in items.clone().values().filter_packages() {
         if let Some(parent) = package.parent {
-            packages
+            items
                 .get_mut(parent)
                 .unwrap()
+                .unwrap_package_mut()
                 .packages
                 .insert(package.token);
         }
     }
-    for module in modules.clone().values() {
-        packages
+    for module in items.clone().values().filter_modules() {
+        items
             .get_mut(module.parent)
             .unwrap()
+            .unwrap_package_mut()
             .modules
             .insert(module.token);
     }
 
     // Get root.
-    let root = packages
+    let root = items
         .values()
+        .filter_packages()
         .filter_map(|p| match p.parent {
             Some(_) => None,
             None => Some(p.token),
@@ -103,12 +118,9 @@ pub(crate) fn build_package_info(data: &HashMap<Pypath, HashSet<Pypath>>) -> Res
 
     Ok(PackageInfo {
         root,
-        packages,
-        modules,
-        packages_by_path: HashMap::new(),
-        packages_by_pypath,
-        modules_by_path: HashMap::new(),
-        modules_by_pypath,
+        items,
+        items_by_path: HashMap::new(),
+        items_by_pypath,
     })
 }
 
