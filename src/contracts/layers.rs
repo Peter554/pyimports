@@ -259,7 +259,7 @@ fn get_forbidden_imports(
 mod tests {
     use super::*;
     use crate::contracts::ContractViolation;
-    use crate::package_info::{PackageInfo, PackageToken};
+    use crate::package_info::{PackageInfo, PackageItemToken};
     use crate::testpackage;
     use crate::testutils::TestPackage;
     use anyhow::Result;
@@ -269,13 +269,13 @@ mod tests {
 
     #[test]
     fn test_get_forbidden_imports() -> Result<()> {
-        let mut sm: SlotMap<PackageToken, String> = SlotMap::with_key();
-        let data: PackageItemToken = sm.insert("data".into()).into();
-        let domain1: PackageItemToken = sm.insert("domain1".into()).into();
-        let domain2: PackageItemToken = sm.insert("domain2".into()).into();
-        let application1: PackageItemToken = sm.insert("application1".into()).into();
-        let application2: PackageItemToken = sm.insert("application2".into()).into();
-        let interfaces: PackageItemToken = sm.insert("interfaces".into()).into();
+        let mut sm: SlotMap<PackageItemToken, String> = SlotMap::with_key();
+        let data: PackageItemToken = sm.insert("data".into());
+        let domain1: PackageItemToken = sm.insert("domain1".into());
+        let domain2: PackageItemToken = sm.insert("domain2".into());
+        let application1: PackageItemToken = sm.insert("application1".into());
+        let application2: PackageItemToken = sm.insert("application2".into());
+        let interfaces: PackageItemToken = sm.insert("interfaces".into());
 
         let layers = vec![
             Layer::new([data], true),

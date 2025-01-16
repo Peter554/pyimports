@@ -1,13 +1,11 @@
 use crate::errors::Error;
-use crate::package_info::{
-    Module, ModuleToken, Package, PackageInfo, PackageItem, PackageItemToken, PackageToken,
-};
+use crate::package_info::{Module, Package, PackageInfo, PackageItem, PackageItemToken};
 use crate::pypath::Pypath;
 use anyhow::Result;
 use std::path::Path;
 
 /// An iterator over package items.
-pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
+pub trait PackageItemIterator<'a>: Iterator<Item = &'a PackageItem> + Sized {
     /// Filter to packages only.
     ///
     /// ```
@@ -65,17 +63,76 @@ pub trait PackageItemIterator<'a>: Iterator<Item = PackageItem<'a>> + Sized {
     }
 }
 
-impl<'a, T: Iterator<Item = PackageItem<'a>>> PackageItemIterator<'a> for T {}
+impl<'a, T: Iterator<Item = &'a PackageItem>> PackageItemIterator<'a> for T {}
+
+/// An iterator over package items.
+pub trait MutPackageItemIterator<'a>: Iterator<Item = &'a mut PackageItem> + Sized {
+    /// Filter to packages only.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage};
+    /// # use pyimports::testutils::TestPackage;
+    /// use pyimports::prelude::*;
+    /// use pyimports::package_info::{PackageInfo,Package};
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let testpackage = testpackage! {
+    /// #     "__init__.py" => ""
+    /// # };
+    /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
+    /// let packages = package_info
+    ///     .get_all_items()
+    ///     .filter_packages()
+    ///     .collect::<Vec<&Package>>();
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn filter_packages_mut(self) -> impl Iterator<Item = &'a mut Package> {
+        self.filter_map(|item| match item {
+            PackageItem::Package(package) => Some(package),
+            _ => None,
+        })
+    }
+
+    /// Filter to modules only.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use pyimports::{testpackage};
+    /// # use pyimports::testutils::TestPackage;
+    /// use pyimports::prelude::*;
+    /// use pyimports::package_info::{PackageInfo,Module};
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let testpackage = testpackage! {
+    /// #     "__init__.py" => ""
+    /// # };
+    /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
+    /// let modules = package_info
+    ///     .get_all_items()
+    ///     .filter_modules()
+    ///     .collect::<Vec<&Module>>();
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn filter_modules_mut(self) -> impl Iterator<Item = &'a mut Module> + Sized {
+        self.filter_map(|item| match item {
+            PackageItem::Module(module) => Some(module),
+            _ => None,
+        })
+    }
+}
+
+impl<'a, T: Iterator<Item = &'a mut PackageItem>> MutPackageItemIterator<'a> for T {}
 
 impl PackageInfo {
     /// Get a package item via the associated filesystem path.
-    pub fn get_item_by_path(&self, path: &Path) -> Option<PackageItem> {
-        if let Some(package) = self.packages_by_path.get(path) {
-            Some(self.get_package(*package).unwrap().into())
+    pub fn get_item_by_path(&self, path: &Path) -> Option<&PackageItem> {
+        if let Some(token) = self.items_by_path.get(path) {
+            Some(self.get_item(*token).unwrap())
         } else {
-            self.modules_by_path
-                .get(path)
-                .map(|module| self.get_module(*module).unwrap().into())
+            None
         }
     }
 
@@ -100,60 +157,39 @@ impl PackageInfo {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_item_by_pypath(&self, pypath: &Pypath) -> Option<PackageItem> {
-        if let Some(package) = self.packages_by_pypath.get(pypath) {
-            Some(self.get_package(*package).unwrap().into())
+    pub fn get_item_by_pypath(&self, pypath: &Pypath) -> Option<&PackageItem> {
+        if let Some(token) = self.items_by_pypath.get(pypath) {
+            Some(self.get_item(*token).unwrap())
         } else {
-            self.modules_by_pypath
-                .get(pypath)
-                .map(|module| self.get_module(*module).unwrap().into())
+            None
         }
     }
 
     /// Get a package item via the associated token.
-    pub fn get_item(&self, token: PackageItemToken) -> Result<PackageItem> {
-        match token {
-            PackageItemToken::Package(token) => Ok(self.get_package(token)?.into()),
-            PackageItemToken::Module(token) => Ok(self.get_module(token)?.into()),
-        }
-    }
-
-    /// Get a package via the associated token.
-    pub fn get_package(&self, token: PackageToken) -> Result<&Package> {
-        match self.packages.get(token) {
-            Some(package) => Ok(package),
-            None => Err(Error::UnknownPackage(token))?,
-        }
-    }
-
-    /// Get a module via the associated token.
-    pub fn get_module(&self, token: ModuleToken) -> Result<&Module> {
-        match self.modules.get(token) {
-            Some(module) => Ok(module),
-            None => Err(Error::UnknownModule(token))?,
+    pub fn get_item(&self, token: PackageItemToken) -> Result<&PackageItem> {
+        match self.items.get(token) {
+            Some(item) => Ok(item),
+            None => Err(Error::UnknownPackageItem(token))?,
         }
     }
 
     /// Get the root package.
-    pub fn get_root(&self) -> &Package {
-        self.get_package(self.root).unwrap()
+    pub fn get_root(&self) -> &PackageItem {
+        self.get_item(self.root).unwrap()
     }
 
     /// Get the parent package of the passed package item.
-    pub fn get_parent_package(&self, token: PackageItemToken) -> Result<Option<&Package>> {
+    pub fn get_parent_package(&self, token: PackageItemToken) -> Result<Option<&PackageItem>> {
         let item = self.get_item(token)?;
         let parent = match item {
             PackageItem::Package(package) => match package.parent {
-                Some(parent) => Some(self.get_item(parent.into())?),
+                Some(parent) => Some(self.get_item(parent)?),
                 None => None,
             },
-            PackageItem::Module(module) => Some(self.get_item(module.parent.into())?),
+            PackageItem::Module(module) => Some(self.get_item(module.parent)?),
         };
         match parent {
-            Some(parent) => match parent {
-                PackageItem::Package(parent) => Ok(Some(parent)),
-                PackageItem::Module(_) => panic!("Parent is a module?!"),
-            },
+            Some(parent) => Ok(Some(parent)),
             None => Ok(None),
         }
     }
@@ -174,26 +210,25 @@ impl PackageInfo {
     /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
     /// let children = package_info
     ///     .get_child_items(package_info.get_root().token())?
-    ///     .collect::<Vec<PackageItem>>();
+    ///     .collect::<Vec<&PackageItem>>();
     /// # Ok(())
     /// # }
     /// ```
     pub fn get_child_items(
         &self,
-        token: PackageToken,
-    ) -> Result<impl Iterator<Item = PackageItem>> {
-        let package = self.get_package(token)?;
+        token: PackageItemToken,
+    ) -> Result<impl Iterator<Item = &PackageItem>> {
+        let item = self.get_item(token)?;
 
-        let child_packages_iter = package
-            .packages
-            .iter()
-            .map(|p| self.get_package(*p).unwrap())
-            .map(PackageItem::Package);
-        let child_modules_iter = package
-            .modules
-            .iter()
-            .map(|m| self.get_module(*m).unwrap())
-            .map(PackageItem::Module);
+        if item.is_module() {
+            return Ok(vec![].into_iter());
+        }
+
+        let package = item.unwrap_package_ref();
+
+        let child_packages_iter = package.packages.iter().map(|p| self.get_item(*p).unwrap());
+        let child_modules_iter = package.modules.iter().map(|m| self.get_item(*m).unwrap());
+
         let iter = child_packages_iter.chain(child_modules_iter);
 
         let v = iter.collect::<Vec<_>>();
@@ -217,14 +252,14 @@ impl PackageInfo {
     /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
     /// let descendants = package_info
     ///     .get_descendant_items(package_info.get_root().token())?
-    ///     .collect::<Vec<PackageItem>>();
+    ///     .collect::<Vec<&PackageItem>>();
     /// # Ok(())
     /// # }
     /// ```
     pub fn get_descendant_items(
         &self,
-        token: PackageToken,
-    ) -> Result<impl Iterator<Item = PackageItem>> {
+        token: PackageItemToken,
+    ) -> Result<impl Iterator<Item = &PackageItem>> {
         let children = self.get_child_items(token)?;
         let iter = children.chain(
             self.get_child_items(token)
@@ -237,9 +272,9 @@ impl PackageInfo {
     }
 
     /// Get an iterator over all the package items.
-    pub fn get_all_items(&self) -> impl Iterator<Item = PackageItem> {
-        let iter = std::iter::once(PackageItem::Package(self.get_root()))
-            .chain(self.get_descendant_items(self.root).unwrap());
+    pub fn get_all_items(&self) -> impl Iterator<Item = &PackageItem> {
+        let iter =
+            std::iter::once(self.get_root()).chain(self.get_descendant_items(self.root).unwrap());
         let v = iter.collect::<Vec<_>>();
         v.into_iter()
     }
@@ -291,10 +326,7 @@ mod tests {
             Some(root_package)
         );
 
-        assert_eq!(
-            package_info.get_parent_package(root_package.token.into())?,
-            None
-        );
+        assert_eq!(package_info.get_parent_package(root_package.token())?, None);
 
         Ok(())
     }
@@ -306,7 +338,7 @@ mod tests {
 
         assert_eq!(
             package_info
-                .get_child_items(package_info.get_root().token)
+                .get_child_items(package_info.get_root().token())
                 .unwrap()
                 .map(|item| item.to_string())
                 .collect::<HashSet<_>>(),
@@ -328,7 +360,7 @@ mod tests {
 
         assert_eq!(
             package_info
-                .get_descendant_items(package_info.get_root().token)
+                .get_descendant_items(package_info.get_root().token())
                 .unwrap()
                 .map(|item| item.to_string())
                 .collect::<HashSet<_>>(),

@@ -86,7 +86,11 @@ impl<'a> ExternalImportsQueries<'a> {
     /// # }
     /// ```
     pub fn get_direct_imports(&self) -> HashMap<PackageItemToken, HashSet<Pypath>> {
-        self.imports_info.external_imports.clone()
+        self.imports_info
+            .external_imports
+            .clone()
+            .into_iter()
+            .collect()
     }
 
     /// Returns true if a direct import exists.
@@ -130,7 +134,7 @@ impl<'a> ExternalImportsQueries<'a> {
         Ok(self
             .imports_info
             .external_imports
-            .get(&from)
+            .get(from)
             .unwrap()
             .contains(to))
     }
@@ -177,7 +181,7 @@ impl<'a> ExternalImportsQueries<'a> {
         Ok(self
             .imports_info
             .external_imports
-            .get(&item)
+            .get(item)
             .unwrap()
             .clone())
     }
@@ -237,7 +241,7 @@ impl<'a> ExternalImportsQueries<'a> {
             .flat_map(|item| {
                 self.imports_info
                     .external_imports
-                    .get(&item)
+                    .get(item)
                     .unwrap()
                     .clone()
             })
@@ -359,7 +363,7 @@ impl<'a> ExternalImportsQueries<'a> {
                 let internal_items = match item {
                     PathfindingNode::Initial => &query.from,
                     PathfindingNode::PackageItem(item) => {
-                        self.imports_info.internal_imports.get(item).unwrap()
+                        self.imports_info.internal_imports.get(**item).unwrap()
                     }
                     PathfindingNode::ExternalItem(_) => &empty_package_items,
                 };
@@ -367,7 +371,7 @@ impl<'a> ExternalImportsQueries<'a> {
                 let external_items = match item {
                     PathfindingNode::Initial => &empty_external_items,
                     PathfindingNode::PackageItem(item) => {
-                        self.imports_info.external_imports.get(item).unwrap()
+                        self.imports_info.external_imports.get(**item).unwrap()
                     }
                     PathfindingNode::ExternalItem(_) => &empty_external_items,
                 };
