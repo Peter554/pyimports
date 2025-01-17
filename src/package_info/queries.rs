@@ -65,67 +65,6 @@ pub trait PackageItemIterator<'a>: Iterator<Item = &'a PackageItem> + Sized {
 
 impl<'a, T: Iterator<Item = &'a PackageItem>> PackageItemIterator<'a> for T {}
 
-/// An iterator over package items.
-pub trait MutPackageItemIterator<'a>: Iterator<Item = &'a mut PackageItem> + Sized {
-    /// Filter to packages only.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use pyimports::{testpackage};
-    /// # use pyimports::testutils::TestPackage;
-    /// use pyimports::prelude::*;
-    /// use pyimports::package_info::{PackageInfo,Package};
-    ///
-    /// # fn main() -> Result<()> {
-    /// # let testpackage = testpackage! {
-    /// #     "__init__.py" => ""
-    /// # };
-    /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
-    /// let packages = package_info
-    ///     .get_all_items()
-    ///     .filter_packages()
-    ///     .collect::<Vec<&Package>>();
-    /// # Ok(())
-    /// # }
-    /// ```
-    fn filter_packages_mut(self) -> impl Iterator<Item = &'a mut Package> {
-        self.filter_map(|item| match item {
-            PackageItem::Package(package) => Some(package),
-            _ => None,
-        })
-    }
-
-    /// Filter to modules only.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use pyimports::{testpackage};
-    /// # use pyimports::testutils::TestPackage;
-    /// use pyimports::prelude::*;
-    /// use pyimports::package_info::{PackageInfo,Module};
-    ///
-    /// # fn main() -> Result<()> {
-    /// # let testpackage = testpackage! {
-    /// #     "__init__.py" => ""
-    /// # };
-    /// # let package_info = PackageInfo::build(testpackage.path()).unwrap();
-    /// let modules = package_info
-    ///     .get_all_items()
-    ///     .filter_modules()
-    ///     .collect::<Vec<&Module>>();
-    /// # Ok(())
-    /// # }
-    /// ```
-    fn filter_modules_mut(self) -> impl Iterator<Item = &'a mut Module> + Sized {
-        self.filter_map(|item| match item {
-            PackageItem::Module(module) => Some(module),
-            _ => None,
-        })
-    }
-}
-
-impl<'a, T: Iterator<Item = &'a mut PackageItem>> MutPackageItemIterator<'a> for T {}
-
 impl PackageInfo {
     /// Get a package item via the associated filesystem path.
     pub fn get_item_by_path(&self, path: &Path) -> Option<&PackageItem> {

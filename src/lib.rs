@@ -27,5 +27,5 @@ pub mod grimp_compare;
 /// ```
 pub mod prelude {
     pub use crate::package_info::ExtendWithDescendants;
-    pub use crate::package_info::{MutPackageItemIterator, PackageItemIterator};
+    pub use crate::package_info::PackageItemIterator;
 }

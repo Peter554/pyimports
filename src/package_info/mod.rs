@@ -15,7 +15,7 @@ use core::fmt;
 use derive_more::{IsVariant, Unwrap};
 use getset::{CopyGetters, Getters};
 use maplit::hashset;
-pub use queries::{MutPackageItemIterator, PackageItemIterator};
+pub use queries::PackageItemIterator;
 use slotmap::{new_key_type, SlotMap};
 use std::{
     collections::{HashMap, HashSet},
