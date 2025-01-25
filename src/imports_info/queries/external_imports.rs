@@ -7,9 +7,14 @@ use derive_builder::Builder;
 use derive_more::{IsVariant, Unwrap};
 use derive_new::new;
 use getset::Getters;
-use maplit::hashset;
+use lazy_static::lazy_static;
 use pathfinding::prelude::bfs;
 use std::collections::{HashMap, HashSet};
+
+lazy_static! {
+    static ref EMPTY_PACKAGE_ITEM_TOKENS: HashSet<PackageItemToken> = HashSet::default();
+    static ref EMPTY_PYPATHS: HashSet<Pypath> = HashSet::default();
+}
 
 /// An object that allows querying external imports.
 pub struct ExternalImportsQueries<'a> {
@@ -353,9 +358,6 @@ impl<'a> ExternalImportsQueries<'a> {
             self.imports_info.package_info.get_item(*item)?;
         }
 
-        let empty_package_items = hashset! {};
-        let empty_external_items = hashset! {};
-
         let path = bfs(
             &PathfindingNode::Initial,
             // Successors
@@ -365,15 +367,15 @@ impl<'a> ExternalImportsQueries<'a> {
                     PathfindingNode::PackageItem(item) => {
                         self.imports_info.internal_imports.get(**item).unwrap()
                     }
-                    PathfindingNode::ExternalItem(_) => &empty_package_items,
+                    PathfindingNode::ExternalItem(_) => &EMPTY_PACKAGE_ITEM_TOKENS,
                 };
 
                 let external_items = match item {
-                    PathfindingNode::Initial => &empty_external_items,
+                    PathfindingNode::Initial => &EMPTY_PYPATHS,
                     PathfindingNode::PackageItem(item) => {
                         self.imports_info.external_imports.get(**item).unwrap()
                     }
-                    PathfindingNode::ExternalItem(_) => &empty_external_items,
+                    PathfindingNode::ExternalItem(_) => &EMPTY_PYPATHS,
                 };
 
                 let internal_items = internal_items
