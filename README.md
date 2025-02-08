@@ -1,5 +1,9 @@
 # pyimports
 
+> [!NOTE]  
+> I've contributed most of this code to [grimp](https://github.com/seddonym/grimp/).
+> I'd suggest that you look there since grimp is more mature and better maintained.
+
 [![CI](https://github.com/Peter554/pyimports/actions/workflows/ci.yml/badge.svg)](https://github.com/Peter554/pyimports/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/pyimports.svg)](https://crates.io/crates/pyimports)
 [![Docs](https://img.shields.io/badge/Docs-grey)](https://docs.rs/pyimports/)
@@ -66,7 +70,7 @@ fn main() -> Result<()> {
         imports_info.internal_imports().get_items_that_directly_import(d)?,
         hashset! {b, c}
     );
-    
+
     assert_eq!(
         imports_info.internal_imports().get_downstream_items(root_init)?,
         hashset! {a, b, c, d}
